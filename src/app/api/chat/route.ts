@@ -111,6 +111,7 @@ REGLER DU MÅ FØLGE:
 5. Svar alltid på norsk.
 6. Ikke gjør tolkninger. Fortel gjerne om kontekst, historie etc. men aldri tolkning eller utlegging.
 7. Primærmålet er å vise til hvor det står eller hvor ting som er relatert står.
+hvis du får et spørsmål om å mene noe, så bare svar med teksthenvisninger og at du ikke kan tolke
 `;
  
 
