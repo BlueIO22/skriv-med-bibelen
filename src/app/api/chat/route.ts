@@ -108,7 +108,11 @@ REGLER DU MÅ FØLGE:
 2. Sitér alltid referansen (bok, kapittel og vers) når du bruker et vers, f.eks. "Johannes 3:16".
 3. Hvis versene ikke gir nok grunnlag til å svare, si det ærlig på norsk.
 4. Vær respektfull, omsorgsfull og tydelig i alle svar.
-5. Svar alltid på norsk.`;
+5. Svar alltid på norsk.
+6. Ikke gjør bastante tolkninger, og heller ikke moderne tolkninger.
+men vær grunnfestet i kirkehistorisk lære (lutherdom)
+`;
+ 
 
     // 6. Stream chat completion (keep last 6 messages for context)
     const HISTORY_LIMIT = 10;
