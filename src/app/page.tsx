@@ -24,7 +24,7 @@ const EXAMPLE_PROMPTS = [
 
 // ── Bible reference extraction & grouping ────────────────────────────────────
 
-const BIBLE_PATTERN_SRC = String.raw`(?:(?:[123]\.?\s*)(?:Mosebok|Samuelsbok|Kongebok|Krønikebok|Korinterbrev|Tessalonikerbrev|Timoteusbrev|Johannes(?:brev)?|Peters\s*brev)|Josva|Dommerne|Rut|Esra|Nehemja|Ester|Job|Salmene|Salme|Sal|Ordspråkene|Forkynneren|Høysangen|Jesaja|Jeremia|Klagesangene|Esekiel|Daniel|Hosea|Joel|Amos|Obadja|Jona|Mika|Nahum|Habakkuk|Sefanja|Haggai|Sakarja|Malaki|Matteus|Matt\b|Markus|Mark\b|Lukas|Luk\b|Johannes|Joh\b|Apostlenes\s+gjerninger|Apg|Romerne|Rom\b|Galaterbrevet|Gal\b|Efeserbrevet|Ef\b|Filipperbrevet|Fil\b|Kolosserbrevet|Kol\b|Titus|Filemon|Hebreerne|Hebr|Jakobs?\s*brev|Jak\b|Åpenbaringen|Åp|Judas)\s+\d+(?:[,:.]\d+(?:\s*[-–]\s*\d+)?)?`;
+const BIBLE_PATTERN_SRC = String.raw`(?:(?:[123]\.?\s*)(?:Mos(?:ebok)?|Samuel(?:sbok)?|Kong(?:ebok)?|Krønike(?:bok)?|Korinter(?:brev)?|Tessaloniker(?:brev)?|Timoteus(?:brev)?|Johannes(?:brev)?|Peter(?:s\s*brev)?)|Josva|Dommerne|Rut|Esra|Nehemja|Ester|Job|Salmene|Salme|Sal|Ordspråkene|Forkynneren|Høysangen|Jesaja|Jeremia|Klagesangene|Esekiel|Daniel|Hosea|Joel|Amos|Obadja|Jona|Mika|Nahum|Habakkuk|Sefanja|Haggai|Sakarja|Malaki|Matteus|Matt\b|Markus|Mark\b|Lukas|Luk\b|Johannes|Joh\b|Apostlenes\s+gjerninger|Apg|Romerne|Rom\b|Galaterbrevet|Gal\b|Efeserbrevet|Ef\b|Filipperbrevet|Fil\b|Kolosserbrevet|Kol\b|Titus|Filemon|Hebreerne|Hebr|Jakobs?\s*brev|Jak\b|Åpenbaringen|Åp|Judas)\s+\d+(?:[,:.]\d+(?:\s*[-–]\s*\d+)?)?`;
 
 // Parse "Book chapter" or "Book chapter:from[-to]" into parts.
 // Returns null if the string doesn't look like a valid ref.
