@@ -261,6 +261,7 @@ function UserMessage({ content }: { content: string }) {
       style={{ display: "flex", justifyContent: "flex-end" }}
     >
       <div
+        className="user-bubble"
         style={{
           maxWidth: "min(68%, 600px)",
           background: "var(--surface2)",
@@ -303,7 +304,7 @@ function AssistantMessage({
       className="animate-fade-up assistant-msg"
       style={{ display: "flex", justifyContent: "flex-start" }}
     >
-      <div style={{ maxWidth: "min(82%, 720px)", width: "100%" }}>
+      <div className="assistant-bubble" style={{ maxWidth: "min(82%, 720px)", width: "100%" }}>
         {/* Label row */}
         <div
           style={{
@@ -1106,6 +1107,7 @@ export default function Home() {
             }}
           />
           <div
+            className="header-bar"
             style={{
               display: "flex",
               alignItems: "center",
@@ -1150,6 +1152,7 @@ export default function Home() {
               </div>
             </div>
             <div
+              className="nb-badge"
               style={{
                 display: "inline-block",
                 padding: "3px 8px",
@@ -1187,6 +1190,7 @@ export default function Home() {
             </div>
           ) : (
             <div
+              className="msgs-wrap"
               style={{
                 maxWidth: "900px",
                 margin: "0 auto",
@@ -1221,6 +1225,7 @@ export default function Home() {
 
         {/* ── Input footer ────────────────────────────────────────────── */}
         <footer
+          className="footer-bar"
           style={{
             flexShrink: 0,
             background: "var(--surface)",
@@ -1306,6 +1311,7 @@ export default function Home() {
               </button>
             </div>
             <div
+              className="input-hint"
               style={{
                 marginTop: "10px",
                 display: "flex",
@@ -1332,6 +1338,15 @@ export default function Home() {
         .msg-copy-btn:hover { color: var(--ink-soft) !important; }
         .ref-chip-icon { max-width: 0; opacity: 0; }
         .ref-chip:hover .ref-chip-icon, .ref-chip-icon--active { max-width: 20px; opacity: 1; }
+        @media (max-width: 640px) {
+          .header-bar { padding: 10px 14px !important; }
+          .nb-badge { display: none !important; }
+          .msgs-wrap { padding: 20px 14px !important; gap: 24px !important; }
+          .user-bubble { max-width: min(88%, 600px) !important; }
+          .assistant-bubble { max-width: 100% !important; }
+          .footer-bar { padding: 12px 14px 14px !important; }
+          .input-hint { display: none !important; }
+        }
       `}</style>
     </div>
   );
