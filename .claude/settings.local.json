@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(grep -rn \"toReadableStream\\\\|pipeThrough\\\\|SSEStream\\\\|ChatCompletionStream\" C:Usersmar_ssourcereposskriv-med-bibelennode_modulesopenai --include=*.d.ts -l)",
+      "Bash(grep -rn \"completions\\\\.stream\\\\|chat\\\\.stream\\\\|\\\\.stream\\(\" C:Usersmar_ssourcereposskriv-med-bibelennode_modulesopenai --include=*.js -l)"
+    ]
+  }
+}

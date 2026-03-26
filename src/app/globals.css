@@ -1,0 +1,84 @@
+@import "tailwindcss";
+
+:root {
+  --bg:        #141414;
+  --surface:   #1C1C1C;
+  --surface2:  #242424;
+  --ink:       #F2EDE4;
+  --ink-soft:  #C8C0B4;
+  --muted:     #787060;
+  --rule:      #2A2A2A;
+  --rule-mid:  #383838;
+  --gold:      #C8A84B;
+  --gold-dim:  #8A7030;
+  --gold-faint:#3A2E10;
+  --danger:    #8B3A3A;
+}
+
+@theme inline {
+  --color-background: var(--bg);
+  --color-foreground: var(--ink);
+  --font-sans: var(--font-ubuntu);
+  --font-mono: var(--font-ubuntu);
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes cursor-blink {
+  0%, 100% { opacity: 0; }
+  50%       { opacity: 1; }
+}
+
+@keyframes slide-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@utility animate-fade-up {
+  animation: fade-up 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@utility animate-fade-in {
+  animation: fade-in 0.35s ease forwards;
+}
+
+@utility animate-cursor {
+  animation: cursor-blink 1.1s ease-in-out infinite;
+}
+
+@utility animate-slide-in {
+  animation: slide-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-ubuntu), 'Ubuntu', sans-serif;
+  font-weight: 400;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 3px; height: 3px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--rule-mid); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: var(--gold-dim); }
