@@ -265,12 +265,25 @@ function EmptyState({ onPrompt }: { onPrompt: (p: string) => void }) {
 // ── Bible ref link pre-processor ─────────────────────────────────────────────
 
 // Wraps every bare Bible reference in the markdown text as a clickable verse link.
+// Skips matches that already appear inside an existing Markdown link [...](...).
 function markBibleRefs(text: string): string {
   const re = new RegExp(BIBLE_PATTERN_SRC, "g");
-  return text.replace(
-    re,
-    (match) => `[${match}](#verse:${encodeURIComponent(match)})`,
-  );
+  const mdLink = /\[([^\]]*)\]\(([^)]*)\)/g;
+
+  // Split text into alternating [outside, link, outside, link, ...] segments.
+  const result: string[] = [];
+  let last = 0;
+  let m: RegExpExecArray | null;
+  while ((m = mdLink.exec(text)) !== null) {
+    // Process bare text before this link
+    result.push(text.slice(last, m.index).replace(re, (match) => `[${match}](#verse:${encodeURIComponent(match)})`));
+    // Keep the existing markdown link untouched
+    result.push(m[0]);
+    last = m.index + m[0].length;
+  }
+  // Process remaining text after last link
+  result.push(text.slice(last).replace(re, (match) => `[${match}](#verse:${encodeURIComponent(match)})`));
+  return result.join("");
 }
 
 // ── Messages ──────────────────────────────────────────────────────────────────
