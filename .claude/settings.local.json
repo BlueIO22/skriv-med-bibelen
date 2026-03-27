@@ -3,7 +3,11 @@
     "allow": [
       "Bash(npm install:*)",
       "Bash(grep -rn \"toReadableStream\\\\|pipeThrough\\\\|SSEStream\\\\|ChatCompletionStream\" C:Usersmar_ssourcereposskriv-med-bibelennode_modulesopenai --include=*.d.ts -l)",
-      "Bash(grep -rn \"completions\\\\.stream\\\\|chat\\\\.stream\\\\|\\\\.stream\\(\" C:Usersmar_ssourcereposskriv-med-bibelennode_modulesopenai --include=*.js -l)"
+      "Bash(grep -rn \"completions\\\\.stream\\\\|chat\\\\.stream\\\\|\\\\.stream\\(\" C:Usersmar_ssourcereposskriv-med-bibelennode_modulesopenai --include=*.js -l)",
+      "Bash(find /c/Users/mar_s/source/repos/skriv-med-bibelen -name tailwind.config.* -o -name postcss.config.*)",
+      "Bash(npx tsc:*)",
+      "mcp__Sanity__query_documents",
+      "mcp__Sanity__get_schema"
     ]
   }
 }

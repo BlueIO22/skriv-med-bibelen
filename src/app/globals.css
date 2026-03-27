@@ -77,6 +77,8 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+button:focus-visible { outline: 1px solid var(--gold-dim); outline-offset: 2px; }
+
 /* Scrollbar */
 ::-webkit-scrollbar { width: 3px; height: 3px; }
 ::-webkit-scrollbar-track { background: transparent; }
