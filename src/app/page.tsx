@@ -1,6 +1,6 @@
 "use client";
 
-import type { ForossPost, ForossPodcast } from "@/app/api/chat/route";
+import type { ForossPodcast, ForossPost } from "@/app/api/chat/route";
 import {
   faArrowRight,
   faBars,
@@ -262,6 +262,17 @@ function EmptyState({ onPrompt }: { onPrompt: (p: string) => void }) {
   );
 }
 
+// ── Bible ref link pre-processor ─────────────────────────────────────────────
+
+// Wraps every bare Bible reference in the markdown text as a clickable verse link.
+function markBibleRefs(text: string): string {
+  const re = new RegExp(BIBLE_PATTERN_SRC, "g");
+  return text.replace(
+    re,
+    (match) => `[${match}](#verse:${encodeURIComponent(match)})`,
+  );
+}
+
 // ── Messages ──────────────────────────────────────────────────────────────────
 
 function UserMessage({ content }: { content: string }) {
@@ -296,9 +307,11 @@ function UserMessage({ content }: { content: string }) {
 function AssistantMessage({
   content,
   isStreaming,
+  onRefClick,
 }: {
   content: string;
   isStreaming: boolean;
+  onRefClick: (ref: string) => void;
 }) {
   const [copied, setCopied] = useState(false);
 
@@ -498,9 +511,50 @@ function AssistantMessage({
                   {children}
                 </code>
               ),
+              a: ({ href, children }) => {
+                if (href?.startsWith("#verse:")) {
+                  const ref = decodeURIComponent(href.slice(7));
+                  return (
+                    <button
+                      onClick={() => onRefClick(ref)}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        padding: "0 2px",
+                        fontFamily: "inherit",
+                        fontSize: "inherit",
+                        fontWeight: "inherit",
+                        color: "inherit",
+                        textDecoration: "underline",
+                        textDecorationStyle: "dotted",
+                        textDecorationColor: "var(--muted)",
+                        textUnderlineOffset: "3px",
+                      }}
+                    >
+                      {children}
+                    </button>
+                  );
+                }
+                return (
+                  <a
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      color: "var(--gold)",
+                      textDecoration: "underline",
+                      textDecorationStyle: "solid",
+                      textUnderlineOffset: "3px",
+                    }}
+                  >
+                    {children}
+                  </a>
+                );
+              },
             }}
           >
-            {content}
+            {markBibleRefs(content)}
           </ReactMarkdown>
           {isStreaming && (
             <span
@@ -524,7 +578,13 @@ function AssistantMessage({
 
 // ── Foross posts panel ────────────────────────────────────────────────────────
 
-function ForossPanel({ posts, podcasts }: { posts: ForossPost[]; podcasts: ForossPodcast[] }) {
+function ForossPanel({
+  posts,
+  podcasts,
+}: {
+  posts: ForossPost[];
+  podcasts: ForossPodcast[];
+}) {
   const [collapsed, setCollapsed] = useState(true);
   const total = posts.length + podcasts.length;
 
@@ -596,26 +656,80 @@ function ForossPanel({ posts, podcasts }: { posts: ForossPost[]; podcasts: Foros
                 }}
               >
                 {post.mainImage?.asset?.url ? (
-                  <div style={{ width: "100%", height: "72px", overflow: "hidden", flexShrink: 0 }}>
+                  <div
+                    style={{
+                      width: "100%",
+                      height: "72px",
+                      overflow: "hidden",
+                      flexShrink: 0,
+                    }}
+                  >
                     <img
                       src={`${post.mainImage.asset.url}?w=240&h=135&fit=crop&auto=format`}
                       alt={post.title}
-                      style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "cover",
+                        display: "block",
+                      }}
                     />
                   </div>
                 ) : (
-                  <div style={{ width: "100%", height: "72px", background: "var(--surface)", flexShrink: 0 }} />
+                  <div
+                    style={{
+                      width: "100%",
+                      height: "72px",
+                      background: "var(--surface)",
+                      flexShrink: 0,
+                    }}
+                  />
                 )}
-                <div style={{ padding: "7px 9px", display: "flex", flexDirection: "column", gap: "3px" }}>
+                <div
+                  style={{
+                    padding: "7px 9px",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "3px",
+                  }}
+                >
                   {post.section && (
-                    <span style={{ fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif", fontSize: "8px", fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--gold-dim)" }}>
+                    <span
+                      style={{
+                        fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif",
+                        fontSize: "8px",
+                        fontWeight: 500,
+                        letterSpacing: "0.12em",
+                        textTransform: "uppercase",
+                        color: "var(--gold-dim)",
+                      }}
+                    >
                       {post.section.title}
                     </span>
                   )}
-                  <span style={{ fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif", fontSize: "11px", fontWeight: 500, color: "var(--ink)", lineHeight: 1.35, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                  <span
+                    style={{
+                      fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif",
+                      fontSize: "11px",
+                      fontWeight: 500,
+                      color: "var(--ink)",
+                      lineHeight: 1.35,
+                      display: "-webkit-box",
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: "vertical",
+                      overflow: "hidden",
+                    }}
+                  >
                     {post.title}
                   </span>
-                  <span style={{ fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif", fontSize: "9px", color: "var(--muted)", marginTop: "auto" }}>
+                  <span
+                    style={{
+                      fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif",
+                      fontSize: "9px",
+                      color: "var(--muted)",
+                      marginTop: "auto",
+                    }}
+                  >
                     foross.no
                   </span>
                 </div>
@@ -646,20 +760,76 @@ function ForossPanel({ posts, podcasts }: { posts: ForossPost[]; podcasts: Foros
                 }}
               >
                 {/* Podcast placeholder header */}
-                <div style={{ width: "100%", height: "72px", background: "var(--surface)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <FontAwesomeIcon icon={faHeadphones} aria-hidden style={{ fontSize: "22px", color: "var(--gold-dim)" }} />
+                <div
+                  style={{
+                    width: "100%",
+                    height: "72px",
+                    background: "var(--surface)",
+                    flexShrink: 0,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <FontAwesomeIcon
+                    icon={faHeadphones}
+                    aria-hidden
+                    style={{ fontSize: "22px", color: "var(--gold-dim)" }}
+                  />
                 </div>
-                <div style={{ padding: "7px 9px", display: "flex", flexDirection: "column", gap: "3px" }}>
+                <div
+                  style={{
+                    padding: "7px 9px",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "3px",
+                  }}
+                >
                   {podcast.section && (
-                    <span style={{ fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif", fontSize: "8px", fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--gold-dim)" }}>
+                    <span
+                      style={{
+                        fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif",
+                        fontSize: "8px",
+                        fontWeight: 500,
+                        letterSpacing: "0.12em",
+                        textTransform: "uppercase",
+                        color: "var(--gold-dim)",
+                      }}
+                    >
                       {podcast.section.title}
                     </span>
                   )}
-                  <span style={{ fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif", fontSize: "11px", fontWeight: 500, color: "var(--ink)", lineHeight: 1.35, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                  <span
+                    style={{
+                      fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif",
+                      fontSize: "11px",
+                      fontWeight: 500,
+                      color: "var(--ink)",
+                      lineHeight: 1.35,
+                      display: "-webkit-box",
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: "vertical",
+                      overflow: "hidden",
+                    }}
+                  >
                     {podcast.title}
                   </span>
-                  <span style={{ fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif", fontSize: "9px", color: "var(--muted)", marginTop: "auto", display: "flex", alignItems: "center", gap: "4px" }}>
-                    <FontAwesomeIcon icon={faHeadphones} aria-hidden style={{ fontSize: "8px" }} />
+                  <span
+                    style={{
+                      fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif",
+                      fontSize: "9px",
+                      color: "var(--muted)",
+                      marginTop: "auto",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "4px",
+                    }}
+                  >
+                    <FontAwesomeIcon
+                      icon={faHeadphones}
+                      aria-hidden
+                      style={{ fontSize: "8px" }}
+                    />
                     episode
                   </span>
                 </div>
@@ -674,7 +844,13 @@ function ForossPanel({ posts, podcasts }: { posts: ForossPost[]; podcasts: Foros
 
 // ── Foross right sidebar (desktop) ───────────────────────────────────────────
 
-function ForossRightSidebar({ posts, podcasts }: { posts: ForossPost[]; podcasts: ForossPodcast[] }) {
+function ForossRightSidebar({
+  posts,
+  podcasts,
+}: {
+  posts: ForossPost[];
+  podcasts: ForossPodcast[];
+}) {
   const [collapsed, setCollapsed] = useState(false);
   const EXPANDED_WIDTH = "260px";
 
@@ -868,20 +1044,76 @@ function ForossRightSidebar({ posts, podcasts }: { posts: ForossPost[]; podcasts
                   flexDirection: "column",
                 }}
               >
-                <div style={{ width: "100%", height: "80px", background: "var(--surface)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <FontAwesomeIcon icon={faHeadphones} aria-hidden style={{ fontSize: "26px", color: "var(--gold-dim)" }} />
+                <div
+                  style={{
+                    width: "100%",
+                    height: "80px",
+                    background: "var(--surface)",
+                    flexShrink: 0,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <FontAwesomeIcon
+                    icon={faHeadphones}
+                    aria-hidden
+                    style={{ fontSize: "26px", color: "var(--gold-dim)" }}
+                  />
                 </div>
-                <div style={{ padding: "8px 10px", display: "flex", flexDirection: "column", gap: "3px" }}>
+                <div
+                  style={{
+                    padding: "8px 10px",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "3px",
+                  }}
+                >
                   {podcast.section && (
-                    <span style={{ fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif", fontSize: "8px", fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--gold-dim)" }}>
+                    <span
+                      style={{
+                        fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif",
+                        fontSize: "8px",
+                        fontWeight: 500,
+                        letterSpacing: "0.12em",
+                        textTransform: "uppercase",
+                        color: "var(--gold-dim)",
+                      }}
+                    >
                       {podcast.section.title}
                     </span>
                   )}
-                  <span style={{ fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif", fontSize: "12px", fontWeight: 500, color: "var(--ink)", lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                  <span
+                    style={{
+                      fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif",
+                      fontSize: "12px",
+                      fontWeight: 500,
+                      color: "var(--ink)",
+                      lineHeight: 1.4,
+                      display: "-webkit-box",
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: "vertical",
+                      overflow: "hidden",
+                    }}
+                  >
                     {podcast.title}
                   </span>
-                  <span style={{ fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif", fontSize: "9px", color: "var(--muted)", marginTop: "2px", display: "flex", alignItems: "center", gap: "4px" }}>
-                    <FontAwesomeIcon icon={faHeadphones} aria-hidden style={{ fontSize: "8px" }} />
+                  <span
+                    style={{
+                      fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif",
+                      fontSize: "9px",
+                      color: "var(--muted)",
+                      marginTop: "2px",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "4px",
+                    }}
+                  >
+                    <FontAwesomeIcon
+                      icon={faHeadphones}
+                      aria-hidden
+                      style={{ fontSize: "8px" }}
+                    />
                     episode
                   </span>
                 </div>
@@ -1195,7 +1427,6 @@ function VerseModal({
           <a
             href="https://norsk-bibel.no"
             target="_blank"
-            rel="noopener noreferrer"
             style={{
               fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif",
               fontSize: "10px",
@@ -1224,7 +1455,7 @@ function VerseModal({
 }
 
 function RefsPanel({ refs }: { refs: string[] }) {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
   const [copiedAll, setCopiedAll] = useState(false);
   const [verseTexts, setVerseTexts] = useState<RefTexts>({});
   const [modalRef, setModalRef] = useState<string | null>(null);
@@ -1831,10 +2062,30 @@ export default function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [forossPosts, setForossPosts] = useState<ForossPost[]>([]);
   const [forossPodcasts, setForossPodcasts] = useState<ForossPodcast[]>([]);
+  const [inlineModalRef, setInlineModalRef] = useState<string | null>(null);
+  const [inlineVerseTexts, setInlineVerseTexts] = useState<RefTexts>({});
   const [sessions, setSessions] = useState<Session[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  function handleInlineRefClick(ref: string) {
+    setInlineModalRef(ref);
+    if (!inlineVerseTexts[ref]) {
+      setInlineVerseTexts((prev) => ({ ...prev, [ref]: "loading" }));
+      fetch(`/api/verses?ref=${encodeURIComponent(ref)}`)
+        .then((r) => r.json())
+        .then((data) =>
+          setInlineVerseTexts((prev) => ({
+            ...prev,
+            [ref]: Array.isArray(data.verses) ? data.verses : "error",
+          })),
+        )
+        .catch(() =>
+          setInlineVerseTexts((prev) => ({ ...prev, [ref]: "error" })),
+        );
+    }
+  }
 
   // Auto-resize textarea to fit content, capped at ~6 lines
   useEffect(() => {
@@ -1932,7 +2183,9 @@ export default function Home() {
       try {
         const rawPodcasts = response.headers.get("X-Foross-Podcasts");
         if (rawPodcasts) {
-          const bytes = Uint8Array.from(atob(rawPodcasts), (c) => c.charCodeAt(0));
+          const bytes = Uint8Array.from(atob(rawPodcasts), (c) =>
+            c.charCodeAt(0),
+          );
           setForossPodcasts(JSON.parse(new TextDecoder().decode(bytes)));
         } else setForossPodcasts([]);
       } catch {
@@ -2159,6 +2412,7 @@ export default function Home() {
                       i === messages.length - 1 &&
                       msg.role === "assistant"
                     }
+                    onRefClick={handleInlineRefClick}
                   />
                 ),
               )}
@@ -2172,6 +2426,15 @@ export default function Home() {
 
         {/* ── Bible references panel ──────────────────────────────────── */}
         <RefsPanel refs={uniqueRefs} />
+
+        {/* ── Inline verse modal (from clicking refs in response text) ── */}
+        {inlineModalRef && (
+          <VerseModal
+            ref={inlineModalRef}
+            verses={inlineVerseTexts[inlineModalRef] ?? "loading"}
+            onClose={() => setInlineModalRef(null)}
+          />
+        )}
 
         {/* ── Input footer ────────────────────────────────────────────── */}
         <footer

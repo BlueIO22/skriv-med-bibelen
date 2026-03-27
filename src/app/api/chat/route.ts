@@ -267,7 +267,7 @@ REGLER DU MÅ FØLGE:
 4. Svar alltid på norsk.
 5. Ikke gjør tolkninger. Fortel gjerne om kontekst, historie etc. men aldri tolkning eller utlegging.
 6. Du skal ikke tolke, mene eller fortelle dine synspunkt.
-${hasForossContent ? `7. Hvis en foross.no-artikkel eller episode er relevant, nevn den gjerne kort og naturlig i svaret med lenken.` : ""}
+${hasForossContent ? `7. Hvis en foross.no-artikkel eller episode er relevant, nevn den gjerne kort og naturlig i svaret. Formater lenken alltid som en Markdown-hyperlenke: [tittel](url).` : ""}
 
 FORMATERING:
 - Bruk Markdown i alle svar.
