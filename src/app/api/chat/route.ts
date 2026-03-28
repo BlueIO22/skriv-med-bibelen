@@ -281,7 +281,7 @@ FORMATERING:
     const HISTORY_LIMIT = 15;
     const recentMessages = messages.slice(-HISTORY_LIMIT);
     const chatStream = openai.chat.completions.stream({
-      model: "gpt-4.1-mini",
+      model: "gpt-5.4-mini",
       messages: [{ role: "system", content: systemPrompt }, ...recentMessages],
     });
 
