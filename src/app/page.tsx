@@ -1,6 +1,6 @@
 "use client";
 
-import type { ForossPodcast, ForossPost } from "@/app/api/chat/route";
+import type { ChurchYearDay, ForossPodcast, ForossPost } from "@/app/api/chat/route";
 import {
   faArrowRight,
   faBars,
@@ -8,6 +8,7 @@ import {
   faCheck,
   faChevronDown,
   faChevronUp,
+  faCog,
   faCopy,
   faExternalLink,
   faHeadphones,
@@ -585,6 +586,276 @@ function AssistantMessage({
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── Settings popover ──────────────────────────────────────────────────────────
+
+function SettingsPopover({
+  series,
+  onSeriesChange,
+  churchYearMode,
+  onChurchYearModeChange,
+}: {
+  series: string;
+  onSeriesChange: (s: string) => void;
+  churchYearMode: boolean;
+  onChurchYearModeChange: (v: boolean) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClick(e: MouseEvent) {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(e.target as Node)
+      ) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [open]);
+
+  return (
+    <div ref={containerRef} style={{ position: "relative" }}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        title="Innstillinger"
+        style={{
+          background: "none",
+          border: "none",
+          cursor: "pointer",
+          color: open ? "var(--gold)" : "var(--muted)",
+          display: "flex",
+          alignItems: "center",
+          padding: "4px",
+          transition: "color 0.2s",
+        }}
+      >
+        <FontAwesomeIcon
+          icon={faCog}
+          style={{ fontSize: "13px", width: "13px", height: "13px" }}
+        />
+      </button>
+
+      {open && (
+        <div
+          style={{
+            position: "absolute",
+            top: "calc(100% + 8px)",
+            right: 0,
+            width: "232px",
+            background: "var(--surface)",
+            border: "1px solid var(--rule-mid)",
+            borderRadius: "4px",
+            padding: "14px 16px",
+            boxShadow: "0 8px 32px rgba(0,0,0,0.28)",
+            zIndex: 100,
+          }}
+        >
+          <div style={{ marginBottom: "14px" }}>
+            <SectionLabel>Tekstrekke</SectionLabel>
+            <div
+              style={{
+                marginTop: "8px",
+                display: "flex",
+                flexDirection: "column",
+                gap: "6px",
+              }}
+            >
+              {[
+                { value: "dnk", label: "Den norske kirke" },
+                { value: "soendagstekst", label: "Søndagens tekst" },
+              ].map(({ value, label }) => (
+                <label
+                  key={value}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    cursor: "pointer",
+                    fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif",
+                    fontSize: "13px",
+                    fontWeight: series === value ? 500 : 400,
+                    color:
+                      series === value ? "var(--ink)" : "var(--ink-soft)",
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name="smb-series"
+                    value={value}
+                    checked={series === value}
+                    onChange={() => onSeriesChange(value)}
+                    style={{ accentColor: "var(--gold)", cursor: "pointer" }}
+                  />
+                  {label}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div
+            style={{
+              height: "1px",
+              background: "var(--rule)",
+              margin: "10px 0",
+            }}
+          />
+
+          <label
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              cursor: "pointer",
+              gap: "8px",
+            }}
+          >
+            <span
+              style={{
+                fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif",
+                fontSize: "13px",
+                fontWeight: 400,
+                color: "var(--ink-soft)",
+              }}
+            >
+              Kirkeåret-modus
+            </span>
+            <input
+              type="checkbox"
+              checked={churchYearMode}
+              onChange={(e) => onChurchYearModeChange(e.target.checked)}
+              style={{
+                accentColor: "var(--gold)",
+                width: "15px",
+                height: "15px",
+                cursor: "pointer",
+                flexShrink: 0,
+              }}
+            />
+          </label>
+          {churchYearMode && (
+            <p
+              style={{
+                fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif",
+                fontSize: "11px",
+                color: "var(--muted)",
+                lineHeight: 1.5,
+                marginTop: "6px",
+              }}
+            >
+              Søndagens GT-, epistel- og evangelietekst legges til i samtalen.
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Church year panel ─────────────────────────────────────────────────────────
+
+function ChurchYearPanel({ day }: { day: ChurchYearDay }) {
+  const [collapsed, setCollapsed] = useState(false);
+
+  return (
+    <div
+      style={{
+        borderTop: "1px solid var(--rule-mid)",
+        background: "var(--surface)",
+        flexShrink: 0,
+      }}
+    >
+      <div
+        onClick={() => setCollapsed((c) => !c)}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "7px 20px",
+          borderBottom: collapsed ? "none" : "1px solid var(--rule)",
+          cursor: "pointer",
+          userSelect: "none",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <SectionLabel>{day.sunday_name}</SectionLabel>
+        </div>
+        <FontAwesomeIcon
+          icon={collapsed ? faChevronUp : faChevronDown}
+          aria-hidden
+          style={{
+            fontSize: "9px",
+            color: "var(--muted)",
+            width: "9px",
+            height: "9px",
+          }}
+        />
+      </div>
+
+      {!collapsed && (
+        <div
+          style={{
+            padding: "8px 20px 12px",
+            display: "flex",
+            flexWrap: "wrap",
+            gap: "16px",
+            alignItems: "center",
+          }}
+        >
+          {(
+            [
+              { label: "GT", ref: day.ot_reference },
+              { label: "Epistel", ref: day.epistle_reference },
+              { label: "Evangelium", ref: day.gospel_reference },
+            ] as { label: string; ref: string }[]
+          ).map(({ label, ref }) => (
+            <div
+              key={label}
+              style={{ display: "flex", alignItems: "center", gap: "5px" }}
+            >
+              <span
+                style={{
+                  fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif",
+                  fontSize: "9px",
+                  fontWeight: 600,
+                  letterSpacing: "0.1em",
+                  textTransform: "uppercase",
+                  color: "var(--gold-dim)",
+                }}
+              >
+                {label}
+              </span>
+              <span
+                style={{
+                  fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif",
+                  fontSize: "12px",
+                  color: "var(--ink-soft)",
+                }}
+              >
+                {ref}
+              </span>
+            </div>
+          ))}
+          <span
+            style={{
+              marginLeft: "auto",
+              fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif",
+              fontSize: "10px",
+              color: "var(--muted)",
+              fontStyle: "italic",
+            }}
+          >
+            Tekstrekke {day.tekstrekke}
+          </span>
+        </div>
+      )}
     </div>
   );
 }
@@ -1857,6 +2128,26 @@ function lsDeleteSession(id: string) {
   localStorage.setItem(LS_INDEX, JSON.stringify(rest));
 }
 
+// ── localStorage series preference ────────────────────────────────────────────
+
+const LS_SERIES = "smb_series";
+
+function lsLoadSeries(): string {
+  try {
+    return localStorage.getItem(LS_SERIES) ?? "dnk";
+  } catch {
+    return "dnk";
+  }
+}
+
+function lsSaveSeries(s: string) {
+  try {
+    localStorage.setItem(LS_SERIES, s);
+  } catch {
+    /* ignore */
+  }
+}
+
 function formatDate(iso: string): string {
   const d = new Date(iso);
   const days = Math.floor((Date.now() - d.getTime()) / 86_400_000);
@@ -2079,6 +2370,9 @@ export default function Home() {
   const [inlineVerseTexts, setInlineVerseTexts] = useState<RefTexts>({});
   const [sessions, setSessions] = useState<Session[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [series, setSeries] = useState<string>("dnk");
+  const [churchYearMode, setChurchYearMode] = useState(false);
+  const [churchYearDay, setChurchYearDay] = useState<ChurchYearDay | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -2108,9 +2402,10 @@ export default function Home() {
     el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
   }, [input]);
 
-  // Load session list on mount
+  // Load session list and series preference on mount
   useEffect(() => {
     setSessions(lsLoadSessions());
+    setSeries(lsLoadSeries());
   }, []);
 
   // Auto-save whenever messages change
@@ -2178,7 +2473,7 @@ export default function Home() {
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: newMessages }),
+        body: JSON.stringify({ messages: newMessages, series, churchYearMode }),
       });
 
       if (!response.ok || !response.body) throw new Error("Request failed");
@@ -2203,6 +2498,15 @@ export default function Home() {
         } else setForossPodcasts([]);
       } catch {
         setForossPodcasts([]);
+      }
+      try {
+        const rawCY = response.headers.get("X-Church-Year-Day");
+        if (rawCY) {
+          const bytes = Uint8Array.from(atob(rawCY), (c) => c.charCodeAt(0));
+          setChurchYearDay(JSON.parse(new TextDecoder().decode(bytes)));
+        }
+      } catch {
+        /* keep existing churchYearDay */
       }
 
       const reader = response.body.getReader();
@@ -2363,27 +2667,40 @@ export default function Home() {
               </div>
             </div>
             <div
-              className="nb-badge"
-              style={{
-                display: "inline-block",
-                padding: "3px 8px",
-                border: "1px solid var(--gold-dim)",
-                fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif",
-                fontSize: "9px",
-                fontWeight: 500,
-                letterSpacing: "0.14em",
-                textTransform: "uppercase",
-                color: "var(--gold)",
-              }}
+              style={{ display: "flex", alignItems: "center", gap: "12px" }}
             >
-              <a
-                href="https://norsk-bibel.no"
-                className="flex gap-1 items-center justify-center flex-row"
-                style={{ color: "inherit", textDecoration: "none" }}
+              <SettingsPopover
+                series={series}
+                onSeriesChange={(s) => {
+                  setSeries(s);
+                  lsSaveSeries(s);
+                }}
+                churchYearMode={churchYearMode}
+                onChurchYearModeChange={setChurchYearMode}
+              />
+              <div
+                className="nb-badge"
+                style={{
+                  display: "inline-block",
+                  padding: "3px 8px",
+                  border: "1px solid var(--gold-dim)",
+                  fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif",
+                  fontSize: "9px",
+                  fontWeight: 500,
+                  letterSpacing: "0.14em",
+                  textTransform: "uppercase",
+                  color: "var(--gold)",
+                }}
               >
-                <span>Norsk Bibel 88/07 — norsk-bibel.no</span>
-                <FontAwesomeIcon icon={faExternalLink} />
-              </a>
+                <a
+                  href="https://norsk-bibel.no"
+                  className="flex gap-1 items-center justify-center flex-row"
+                  style={{ color: "inherit", textDecoration: "none" }}
+                >
+                  <span>Norsk Bibel 88/07 — norsk-bibel.no</span>
+                  <FontAwesomeIcon icon={faExternalLink} />
+                </a>
+              </div>
             </div>
           </div>
         </header>
@@ -2435,6 +2752,7 @@ export default function Home() {
         </main>
 
         {/* ── Foross posts panel (mobile only) ────────────────────────── */}
+        {churchYearDay && <ChurchYearPanel day={churchYearDay} />}
         <ForossPanel posts={forossPosts} podcasts={forossPodcasts} />
 
         {/* ── Bible references panel ──────────────────────────────────── */}
