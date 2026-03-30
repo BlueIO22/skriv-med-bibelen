@@ -1,6 +1,6 @@
-import { supabase } from "@/lib/supabase";
-import { sanity } from "@/lib/sanity";
 import { parseChurchYearRef } from "@/lib/book-abbreviations";
+import { sanity } from "@/lib/sanity";
+import { supabase } from "@/lib/supabase";
 import OpenAI from "openai";
 
 type Message = { role: "user" | "assistant" | "system"; content: string };
@@ -50,52 +50,101 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 // Maps Supabase newname → Sanity bibleBook slug.current
 const BOOK_SLUG_MAP: Record<string, string> = {
-  "1 Mosebok": "1-mosebok", "1. Mosebok": "1-mosebok",
-  "2 Mosebok": "2-mosebok", "2. Mosebok": "2-mosebok",
-  "3 Mosebok": "3-mosebok", "3. Mosebok": "3-mosebok",
-  "4 Mosebok": "4-mosebok", "4. Mosebok": "4-mosebok",
-  "5 Mosebok": "5-mosebok", "5. Mosebok": "5-mosebok",
-  "Josva": "josva", "Dommerne": "dommerne", "Rut": "rut",
-  "1 Samuel": "1-samuel", "1. Samuel": "1-samuel",
-  "2 Samuel": "2-samuel", "2. Samuel": "2-samuel",
-  "1 Kongebok": "1-kongebok", "1. Kongebok": "1-kongebok",
-  "2 Kongebok": "2-kongebok", "2. Kongebok": "2-kongebok",
-  "1 Krønikebok": "1-kronikebok", "1. Krønikebok": "1-kronikebok",
-  "2 Krønikebok": "2-kronikebok", "2. Krønikebok": "2-kronikebok",
-  "Esra": "esra", "Nehemja": "nehemja", "Ester": "ester", "Job": "job",
-  "Salmene": "salmene", "Salme": "salmene",
-  "Ordspråkene": "ordsprakene", "Forkynneren": "forkynneren", "Høysangen": "hoysangen",
-  "Jesaja": "jesaia",   // Sanity spells it "Jesaia"
-  "Jeremia": "jeremia", "Klagesangene": "klagesangene", "Esekiel": "esekiel",
-  "Daniel": "daniel", "Hosea": "hosea", "Joel": "joel", "Amos": "amos",
-  "Obadja": "obadja",
-  "Jona": "jonah",      // Sanity spells it "Jonah"
-  "Mika": "mika", "Nahum": "nahum", "Habakkuk": "habakkuk",
-  "Sefanja": "sefanja", "Haggai": "haggai",
-  "Sakarja": "sakaria", // Sanity spells it "Sakaria"
-  "Malaki": "makali",   // Sanity slug is "makali" (their typo)
-  "Matteus": "matteus", "Markus": "markus", "Lukas": "lukas", "Johannes": "johannes",
+  "1 Mosebok": "1-mosebok",
+  "1. Mosebok": "1-mosebok",
+  "2 Mosebok": "2-mosebok",
+  "2. Mosebok": "2-mosebok",
+  "3 Mosebok": "3-mosebok",
+  "3. Mosebok": "3-mosebok",
+  "4 Mosebok": "4-mosebok",
+  "4. Mosebok": "4-mosebok",
+  "5 Mosebok": "5-mosebok",
+  "5. Mosebok": "5-mosebok",
+  Josva: "josva",
+  Dommerne: "dommerne",
+  Rut: "rut",
+  "1 Samuel": "1-samuel",
+  "1. Samuel": "1-samuel",
+  "2 Samuel": "2-samuel",
+  "2. Samuel": "2-samuel",
+  "1 Kongebok": "1-kongebok",
+  "1. Kongebok": "1-kongebok",
+  "2 Kongebok": "2-kongebok",
+  "2. Kongebok": "2-kongebok",
+  "1 Krønikebok": "1-kronikebok",
+  "1. Krønikebok": "1-kronikebok",
+  "2 Krønikebok": "2-kronikebok",
+  "2. Krønikebok": "2-kronikebok",
+  Esra: "esra",
+  Nehemja: "nehemja",
+  Ester: "ester",
+  Job: "job",
+  Salmene: "salmene",
+  Salme: "salmene",
+  Ordspråkene: "ordsprakene",
+  Forkynneren: "forkynneren",
+  Høysangen: "hoysangen",
+  Jesaja: "jesaia", // Sanity spells it "Jesaia"
+  Jeremia: "jeremia",
+  Klagesangene: "klagesangene",
+  Esekiel: "esekiel",
+  Daniel: "daniel",
+  Hosea: "hosea",
+  Joel: "joel",
+  Amos: "amos",
+  Obadja: "obadja",
+  Jona: "jonah", // Sanity spells it "Jonah"
+  Mika: "mika",
+  Nahum: "nahum",
+  Habakkuk: "habakkuk",
+  Sefanja: "sefanja",
+  Haggai: "haggai",
+  Sakarja: "sakaria", // Sanity spells it "Sakaria"
+  Malaki: "makali", // Sanity slug is "makali" (their typo)
+  Matteus: "matteus",
+  Markus: "markus",
+  Lukas: "lukas",
+  Johannes: "johannes",
   "Apostlenes gjerninger": "apostlenes-gjerninger",
-  "Romerne": "romerne",
-  "1 Korinter": "1-korinter", "1. Korinter": "1-korinter",
-  "2 Korinter": "2-korinter", "2. Korinter": "2-korinter",
-  "Galaterne": "galaterne", "Galaterbrevet": "galaterne",
-  "Efeserne": "efeserne", "Efeserbrevet": "efeserne",
-  "Filipperne": "filiperne", "Filipperbrevet": "filiperne",
-  "Kolosserne": "kolosserne", "Kolosserbrevet": "kolosserne",
-  "1 Tessaloniker": "1-tessaloniker", "1. Tessaloniker": "1-tessaloniker",
-  "2 Tessaloniker": "2-tessaloniker", "2. Tessaloniker": "2-tessaloniker",
-  "1 Timoteus": "1-timoteus", "1. Timoteus": "1-timoteus",
-  "2 Timoteus": "2-timoteus", "2. Timoteus": "2-timoteus",
-  "Titus": "titus", "Filemon": "filemon", "Hebreerne": "hebreerne",
-  "Jakob": "jakob", "Jakobs brev": "jakob",
-  "1 Peter": "1-peter", "1. Peter": "1-peter",
-  "2 Peter": "2-peter", "2. Peter": "2-peter",
-  "1 Johannes": "1-johannes", "1. Johannes": "1-johannes",
-  "2 Johannes": "2-johannes", "2. Johannes": "2-johannes",
-  "3 Johannes": "3-johannes", "3. Johannes": "3-johannes",
-  "Judas": "judas", "Juda": "judas",
-  "Åpenbaringen": "apenbaringen",
+  Romerne: "romerne",
+  "1 Korinter": "1-korinter",
+  "1. Korinter": "1-korinter",
+  "2 Korinter": "2-korinter",
+  "2. Korinter": "2-korinter",
+  Galaterne: "galaterne",
+  Galaterbrevet: "galaterne",
+  Efeserne: "efeserne",
+  Efeserbrevet: "efeserne",
+  Filipperne: "filiperne",
+  Filipperbrevet: "filiperne",
+  Kolosserne: "kolosserne",
+  Kolosserbrevet: "kolosserne",
+  "1 Tessaloniker": "1-tessaloniker",
+  "1. Tessaloniker": "1-tessaloniker",
+  "2 Tessaloniker": "2-tessaloniker",
+  "2. Tessaloniker": "2-tessaloniker",
+  "1 Timoteus": "1-timoteus",
+  "1. Timoteus": "1-timoteus",
+  "2 Timoteus": "2-timoteus",
+  "2. Timoteus": "2-timoteus",
+  Titus: "titus",
+  Filemon: "filemon",
+  Hebreerne: "hebreerne",
+  Jakob: "jakob",
+  "Jakobs brev": "jakob",
+  "1 Peter": "1-peter",
+  "1. Peter": "1-peter",
+  "2 Peter": "2-peter",
+  "2. Peter": "2-peter",
+  "1 Johannes": "1-johannes",
+  "1. Johannes": "1-johannes",
+  "2 Johannes": "2-johannes",
+  "2. Johannes": "2-johannes",
+  "3 Johannes": "3-johannes",
+  "3. Johannes": "3-johannes",
+  Judas: "judas",
+  Juda: "judas",
+  Åpenbaringen: "apenbaringen",
 };
 
 async function resolveBibleChapterIds(
@@ -136,7 +185,10 @@ async function fetchForossPosts(flatIds: string[]): Promise<ForossPost[]> {
   return posts ?? [];
 }
 
-async function fetchForossPodcasts(flatIds: string[], userQuery: string): Promise<ForossPodcast[]> {
+async function fetchForossPodcasts(
+  flatIds: string[],
+  userQuery: string,
+): Promise<ForossPodcast[]> {
   const podcasts = await sanity.fetch<ForossPodcast[]>(
     `*[_type == "podcast" && (
       references($ids) ||
@@ -172,7 +224,8 @@ async function fetchChurchYearVerses(day: ChurchYearDay): Promise<{
       .lte("versenumber", toVerse)
       .order("versenumber");
     if (!data || data.length === 0) return `(Ingen vers funnet for ${ref})`;
-    const header = (data[0] as { newname_reference: string }).newname_reference ?? ref;
+    const header =
+      (data[0] as { newname_reference: string }).newname_reference ?? ref;
     const body = (data as { versenumber: number; versecontent: string }[])
       .map((v) => `${v.versenumber} ${v.versecontent}`)
       .join(" ");
@@ -188,9 +241,18 @@ async function fetchChurchYearVerses(day: ChurchYearDay): Promise<{
 }
 
 const NO_MONTHS: Record<string, string> = {
-  januar: "01", februar: "02", mars: "03", april: "04",
-  mai: "05", juni: "06", juli: "07", august: "08",
-  september: "09", oktober: "10", november: "11", desember: "12",
+  januar: "01",
+  februar: "02",
+  mars: "03",
+  april: "04",
+  mai: "05",
+  juni: "06",
+  juli: "07",
+  august: "08",
+  september: "09",
+  oktober: "10",
+  november: "11",
+  desember: "12",
 };
 
 /** Extract an ISO date (YYYY-MM-DD) from a Norwegian message, or return null. */
@@ -256,14 +318,16 @@ export async function POST(req: Request): Promise<Response> {
 
     // 1c. Fetch church year texts if mode is active
     let churchYearDay: ChurchYearDay | null = null;
-    let churchYearVerses: { otText: string; epistleText: string; gospelText: string } | null = null;
+    let churchYearVerses: {
+      otText: string;
+      epistleText: string;
+      gospelText: string;
+    } | null = null;
     if (churchYearMode) {
-      const today = extractDateFromMessage(lastUserMessage.content) ?? new Date().toISOString().slice(0, 10);
       const { data: cyDay } = await supabase
         .from("church_year_day")
         .select("*")
         .eq("series", series ?? "dnk")
-        .lte("dato", today)
         .order("dato", { ascending: false })
         .limit(1)
         .single();
@@ -291,20 +355,23 @@ export async function POST(req: Request): Promise<Response> {
       )
       .join(",");
 
-    const flatIds = await resolveBibleChapterIds(matchedVerses as MatchedVerse[]);
+    const flatIds = await resolveBibleChapterIds(
+      matchedVerses as MatchedVerse[],
+    );
 
-    const [{ data: surrounding }, forossPosts, forossPodcasts] = await Promise.all([
-      supabase
-        .from("verse_chapter_book_references")
-        .select(
-          "newname, chapternumber, versenumber, versecontent, newname_reference",
-        )
-        .or(orFilter)
-        .order("chapternumber")
-        .order("versenumber"),
-      fetchForossPosts(flatIds),
-      fetchForossPodcasts(flatIds, lastUserMessage.content),
-    ]);
+    const [{ data: surrounding }, forossPosts, forossPodcasts] =
+      await Promise.all([
+        supabase
+          .from("verse_chapter_book_references")
+          .select(
+            "newname, chapternumber, versenumber, versecontent, newname_reference",
+          )
+          .or(orFilter)
+          .order("chapternumber")
+          .order("versenumber"),
+        fetchForossPosts(flatIds),
+        fetchForossPodcasts(flatIds, lastUserMessage.content),
+      ]);
 
     const surroundingRows = (surrounding ?? []) as VerseRow[];
 
@@ -357,7 +424,11 @@ export async function POST(req: Request): Promise<Response> {
         : "";
 
     const forossRuleNumber = hasForossContent ? (churchYearDay ? 8 : 7) : null;
-    const churchYearRuleNumber = churchYearDay ? (hasForossContent ? 9 : 7) : null;
+    const churchYearRuleNumber = churchYearDay
+      ? hasForossContent
+        ? 9
+        : 7
+      : null;
 
     // 6. System prompt
     const systemPrompt = `Du er en bibelveileder som hjelper mennesker å utforske Bibelen på norsk.
@@ -415,10 +486,18 @@ FORMATERING:
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache",
       Connection: "keep-alive",
-      "X-Foross-Posts": Buffer.from(JSON.stringify(forossPosts)).toString("base64"),
-      "X-Foross-Podcasts": Buffer.from(JSON.stringify(forossPodcasts)).toString("base64"),
+      "X-Foross-Posts": Buffer.from(JSON.stringify(forossPosts)).toString(
+        "base64",
+      ),
+      "X-Foross-Podcasts": Buffer.from(JSON.stringify(forossPodcasts)).toString(
+        "base64",
+      ),
       ...(churchYearDay
-        ? { "X-Church-Year-Day": Buffer.from(JSON.stringify(churchYearDay)).toString("base64") }
+        ? {
+            "X-Church-Year-Day": Buffer.from(
+              JSON.stringify(churchYearDay),
+            ).toString("base64"),
+          }
         : {}),
     });
 
