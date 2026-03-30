@@ -1,6 +1,10 @@
 "use client";
 
-import type { ChurchYearDay, ForossPodcast, ForossPost } from "@/app/api/chat/route";
+import type {
+  ChurchYearDay,
+  ForossPodcast,
+  ForossPost,
+} from "@/app/api/chat/route";
 import {
   faArrowRight,
   faBars,
@@ -277,13 +281,27 @@ function markBibleRefs(text: string): string {
   let m: RegExpExecArray | null;
   while ((m = mdLink.exec(text)) !== null) {
     // Process bare text before this link
-    result.push(text.slice(last, m.index).replace(re, (match) => `[${match}](#verse:${encodeURIComponent(match)})`));
+    result.push(
+      text
+        .slice(last, m.index)
+        .replace(
+          re,
+          (match) => `[${match}](#verse:${encodeURIComponent(match)})`,
+        ),
+    );
     // Keep the existing markdown link untouched
     result.push(m[0]);
     last = m.index + m[0].length;
   }
   // Process remaining text after last link
-  result.push(text.slice(last).replace(re, (match) => `[${match}](#verse:${encodeURIComponent(match)})`));
+  result.push(
+    text
+      .slice(last)
+      .replace(
+        re,
+        (match) => `[${match}](#verse:${encodeURIComponent(match)})`,
+      ),
+  );
   return result.join("");
 }
 
@@ -682,8 +700,7 @@ function SettingsPopover({
                     fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif",
                     fontSize: "13px",
                     fontWeight: series === value ? 500 : 400,
-                    color:
-                      series === value ? "var(--ink)" : "var(--ink-soft)",
+                    color: series === value ? "var(--ink)" : "var(--ink-soft)",
                   }}
                 >
                   <input
@@ -2372,7 +2389,9 @@ export default function Home() {
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [series, setSeries] = useState<string>("dnk");
   const [churchYearMode, setChurchYearMode] = useState(false);
-  const [churchYearDay, setChurchYearDay] = useState<ChurchYearDay | null>(null);
+  const [churchYearDay, setChurchYearDay] = useState<ChurchYearDay | null>(
+    null,
+  );
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -2662,13 +2681,11 @@ export default function Home() {
                   Skriv med Bibelen
                 </div>
                 <div>
-                  <SectionLabel>Bibelhjelp · gpt-4.1-mini</SectionLabel>
+                  <SectionLabel>Bibelhjelp · gpt-5.4-mini</SectionLabel>
                 </div>
               </div>
             </div>
-            <div
-              style={{ display: "flex", alignItems: "center", gap: "12px" }}
-            >
+            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
               <SettingsPopover
                 series={series}
                 onSeriesChange={(s) => {
