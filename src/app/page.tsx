@@ -5,6 +5,7 @@ import type {
   ForossPodcast,
   ForossPost,
 } from "@/app/api/chat/route";
+import { parseChurchYearRef } from "@/lib/book-abbreviations";
 import {
   faArrowRight,
   faBars,
@@ -756,100 +757,29 @@ function SettingsPopover({
 // ── Church year panel ─────────────────────────────────────────────────────────
 
 function ChurchYearPanel({ day }: { day: ChurchYearDay }) {
-  const [collapsed, setCollapsed] = useState(false);
-
   return (
     <div
       style={{
         borderTop: "1px solid var(--rule-mid)",
         background: "var(--surface)",
         flexShrink: 0,
+        padding: "6px 20px",
+        display: "flex",
+        alignItems: "center",
+        gap: "10px",
       }}
     >
-      <div
-        onClick={() => setCollapsed((c) => !c)}
+      <SectionLabel>{day.sunday_name}</SectionLabel>
+      <span
         style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "7px 20px",
-          borderBottom: collapsed ? "none" : "1px solid var(--rule)",
-          cursor: "pointer",
-          userSelect: "none",
+          fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif",
+          fontSize: "9px",
+          color: "var(--muted)",
+          fontStyle: "italic",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <SectionLabel>{day.sunday_name}</SectionLabel>
-        </div>
-        <FontAwesomeIcon
-          icon={collapsed ? faChevronUp : faChevronDown}
-          aria-hidden
-          style={{
-            fontSize: "9px",
-            color: "var(--muted)",
-            width: "9px",
-            height: "9px",
-          }}
-        />
-      </div>
-
-      {!collapsed && (
-        <div
-          style={{
-            padding: "8px 20px 12px",
-            display: "flex",
-            flexWrap: "wrap",
-            gap: "16px",
-            alignItems: "center",
-          }}
-        >
-          {(
-            [
-              { label: "GT", ref: day.ot_reference },
-              { label: "Epistel", ref: day.epistle_reference },
-              { label: "Evangelium", ref: day.gospel_reference },
-            ] as { label: string; ref: string }[]
-          ).map(({ label, ref }) => (
-            <div
-              key={label}
-              style={{ display: "flex", alignItems: "center", gap: "5px" }}
-            >
-              <span
-                style={{
-                  fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif",
-                  fontSize: "9px",
-                  fontWeight: 600,
-                  letterSpacing: "0.1em",
-                  textTransform: "uppercase",
-                  color: "var(--gold-dim)",
-                }}
-              >
-                {label}
-              </span>
-              <span
-                style={{
-                  fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif",
-                  fontSize: "12px",
-                  color: "var(--ink-soft)",
-                }}
-              >
-                {ref}
-              </span>
-            </div>
-          ))}
-          <span
-            style={{
-              marginLeft: "auto",
-              fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif",
-              fontSize: "10px",
-              color: "var(--muted)",
-              fontStyle: "italic",
-            }}
-          >
-            Tekstrekke {day.tekstrekke}
-          </span>
-        </div>
-      )}
+        Tekstrekke {day.tekstrekke}
+      </span>
     </div>
   );
 }
@@ -1406,6 +1336,34 @@ function ForossRightSidebar({
 
 // ── Bible references panel ────────────────────────────────────────────────────
 
+function churchYearRefToApiRef(ref: string | null): string | null {
+  if (!ref) return null;
+  const parsed = parseChurchYearRef(ref);
+  if (!parsed) return null;
+  const { fullBookName, chapter, fromVerse, toVerse } = parsed;
+  if (toVerse === 999) return `${fullBookName} ${chapter}`;
+  if (fromVerse === toVerse) return `${fullBookName} ${chapter}:${fromVerse}`;
+  return `${fullBookName} ${chapter}:${fromVerse}-${toVerse}`;
+}
+
+type ChurchYearRef = { label: string; originalRef: string; apiRef: string };
+
+function getChurchYearRefs(day: ChurchYearDay): ChurchYearRef[] {
+  return (
+    [
+      { label: "GT", ref: day.ot_reference },
+      { label: "Epistel", ref: day.epistle_reference },
+      { label: "Evangelium", ref: day.gospel_reference },
+    ] as { label: string; ref: string | null }[]
+  )
+    .filter((e): e is { label: string; ref: string } => Boolean(e.ref))
+    .map(({ label, ref }) => ({
+      label,
+      originalRef: ref,
+      apiRef: churchYearRefToApiRef(ref) ?? ref,
+    }));
+}
+
 type VerseData = { versenumber: number; versecontent: string };
 type RefTexts = Record<string, VerseData[] | "loading" | "error">;
 
@@ -1732,15 +1690,24 @@ function VerseModal({
   );
 }
 
-function RefsPanel({ refs }: { refs: string[] }) {
+function RefsPanel({
+  refs,
+  churchYearDay,
+}: {
+  refs: string[];
+  churchYearDay?: ChurchYearDay | null;
+}) {
   const [collapsed, setCollapsed] = useState(true);
   const [copiedAll, setCopiedAll] = useState(false);
   const [verseTexts, setVerseTexts] = useState<RefTexts>({});
   const [modalRef, setModalRef] = useState<string | null>(null);
 
+  const churchYearRefs = churchYearDay ? getChurchYearRefs(churchYearDay) : [];
+  const allApiRefs = [...churchYearRefs.map((r) => r.apiRef), ...refs];
+
   // Fetch verse text for each ref whenever the refs list changes
   useEffect(() => {
-    for (const ref of refs) {
+    for (const ref of allApiRefs) {
       if (verseTexts[ref]) continue; // already fetched or in flight
       setVerseTexts((prev) => ({ ...prev, [ref]: "loading" }));
       fetch(`/api/verses?ref=${encodeURIComponent(ref)}`)
@@ -1756,21 +1723,29 @@ function RefsPanel({ refs }: { refs: string[] }) {
         });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refs.join("|")]);
+  }, [allApiRefs.join("|")]);
 
   const copyAll = useCallback(() => {
-    const parts = refs.map((ref) => {
+    const churchYearParts = churchYearRefs.map(({ label, originalRef, apiRef }) => {
+      const verses = verseTexts[apiRef];
+      const body = Array.isArray(verses) ? buildCopyText(originalRef, verses) : originalRef;
+      return `[${label}] ${body}`;
+    });
+    const regularParts = refs.map((ref) => {
       const verses = verseTexts[ref];
       return Array.isArray(verses) ? buildCopyText(ref, verses) : ref;
     });
+    const parts = [...churchYearParts, ...regularParts];
     const text = `${parts.join("\n\n")}\n\n${SOURCE_LINE}`;
     navigator.clipboard.writeText(text).then(() => {
       setCopiedAll(true);
       setTimeout(() => setCopiedAll(false), 1800);
     });
-  }, [refs, verseTexts]);
+  }, [refs, churchYearRefs, verseTexts]);
 
-  if (refs.length === 0) return null;
+  const totalCount = refs.length + churchYearRefs.length;
+
+  if (totalCount === 0) return null;
 
   return (
     <div
@@ -1795,7 +1770,7 @@ function RefsPanel({ refs }: { refs: string[] }) {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <SectionLabel>Bibelreferanser · {refs.length}</SectionLabel>
+          <SectionLabel>Referanser · {totalCount}</SectionLabel>
           <FontAwesomeIcon
             icon={collapsed ? faChevronUp : faChevronDown}
             aria-hidden
@@ -1849,9 +1824,142 @@ function RefsPanel({ refs }: { refs: string[] }) {
             overflowY: "auto",
             padding: "10px 20px 12px",
             scrollbarWidth: "none",
-            maxHeight: "200px",
+            maxHeight: "240px",
           }}
         >
+          {/* Church year refs section */}
+          {churchYearRefs.length > 0 && (
+            <div
+              style={{
+                borderLeft: "2px solid var(--gold-dim)",
+                paddingLeft: "10px",
+                marginBottom: refs.length > 0 ? "8px" : "0",
+                display: "flex",
+                flexDirection: "column",
+                gap: "5px",
+              }}
+            >
+              <span
+                style={{
+                  fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif",
+                  fontSize: "9px",
+                  fontWeight: 500,
+                  letterSpacing: "0.12em",
+                  textTransform: "uppercase",
+                  color: "var(--gold-dim)",
+                  marginBottom: "2px",
+                }}
+              >
+                Kirkeåret
+              </span>
+              {churchYearRefs.map(({ label, originalRef, apiRef }) => {
+                const state = verseTexts[apiRef];
+                const isLoading = state === "loading";
+                return (
+                  <div
+                    key={label}
+                    style={{
+                      display: "flex",
+                      alignItems: "baseline",
+                      gap: "8px",
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif",
+                        fontSize: "9px",
+                        fontWeight: 500,
+                        letterSpacing: "0.12em",
+                        textTransform: "uppercase",
+                        color: "var(--muted)",
+                        flexShrink: 0,
+                        whiteSpace: "nowrap",
+                        minWidth: "80px",
+                      }}
+                    >
+                      {label}
+                    </span>
+                    <button
+                      onClick={() => setModalRef(apiRef)}
+                      title={originalRef}
+                      disabled={isLoading}
+                      className="ref-chip"
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "5px",
+                        flexShrink: 0,
+                        padding: "3px 10px",
+                        background: "var(--surface2)",
+                        border: "1px solid var(--gold-dim)",
+                        borderRadius: "2px",
+                        cursor: isLoading ? "default" : "pointer",
+                        transition: "all 0.2s",
+                        opacity: isLoading ? 0.6 : 1,
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif",
+                          fontSize: "12px",
+                          fontWeight: 400,
+                          color: "var(--ink-soft)",
+                          letterSpacing: "0.01em",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {originalRef}
+                      </span>
+                      <span
+                        className="ref-chip-icon"
+                        style={{
+                          color: "var(--gold-dim)",
+                          display: "flex",
+                          alignItems: "center",
+                        }}
+                      >
+                        {isLoading ? (
+                          <span
+                            style={{
+                              width: "10px",
+                              height: "10px",
+                              borderRadius: "50%",
+                              border: "1.5px solid var(--muted)",
+                              borderTopColor: "var(--gold)",
+                              animation: "spin 0.8s linear infinite",
+                              display: "block",
+                            }}
+                          />
+                        ) : (
+                          <FontAwesomeIcon
+                            icon={faExternalLink}
+                            aria-hidden
+                            style={{
+                              fontSize: "9px",
+                              width: "9px",
+                              height: "9px",
+                            }}
+                          />
+                        )}
+                      </span>
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Separator between church year and regular refs */}
+          {churchYearRefs.length > 0 && refs.length > 0 && (
+            <div
+              style={{
+                height: "1px",
+                background: "var(--rule)",
+                margin: "2px 0 4px",
+              }}
+            />
+          )}
+
           {(() => {
             // Group refs by book
             const groups = new Map<string, string[]>();
@@ -2775,7 +2883,7 @@ export default function Home() {
         <ForossPanel posts={forossPosts} podcasts={forossPodcasts} />
 
         {/* ── Bible references panel ──────────────────────────────────── */}
-        <RefsPanel refs={uniqueRefs} />
+        <RefsPanel refs={uniqueRefs} churchYearDay={churchYearDay} />
 
         {/* ── Inline verse modal (from clicking refs in response text) ── */}
         {inlineModalRef && (
