@@ -648,9 +648,13 @@ function AssistantMessage({
 function SettingsPopover({
   series,
   onSeriesChange,
+  tekstrekkeOverride,
+  onTekstrekkeChange,
 }: {
   series: string;
   onSeriesChange: (s: string) => void;
+  tekstrekkeOverride: number | null;
+  onTekstrekkeChange: (t: number | null) => void;
 }) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -707,8 +711,9 @@ function SettingsPopover({
             zIndex: 100,
           }}
         >
+          {/* Series / calendar */}
           <div style={{ marginBottom: "14px" }}>
-            <SectionLabel>Tekstrekke</SectionLabel>
+            <SectionLabel>Kalender</SectionLabel>
             <div
               style={{
                 marginTop: "8px",
@@ -748,6 +753,66 @@ function SettingsPopover({
             </div>
           </div>
 
+          {/* Divider */}
+          <div
+            style={{
+              height: "1px",
+              background: "var(--rule)",
+              marginBottom: "14px",
+            }}
+          />
+
+          {/* Lectionary year override */}
+          <div>
+            <SectionLabel>Kirkeår</SectionLabel>
+            <div
+              style={{
+                marginTop: "8px",
+                display: "flex",
+                gap: "6px",
+              }}
+            >
+              {([null, 1, 2, 3] as (number | null)[]).map((val) => {
+                const label = val === null ? "Auto" : String(val);
+                const active = tekstrekkeOverride === val;
+                return (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={() => onTekstrekkeChange(val)}
+                    style={{
+                      flex: 1,
+                      padding: "5px 0",
+                      background: active ? "var(--gold-dim)" : "var(--surface2)",
+                      border: `1px solid ${active ? "var(--gold)" : "var(--rule-mid)"}`,
+                      borderRadius: "2px",
+                      cursor: "pointer",
+                      fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif",
+                      fontSize: "11px",
+                      fontWeight: active ? 600 : 400,
+                      color: active ? "var(--gold)" : "var(--ink-soft)",
+                      transition: "all 0.15s",
+                    }}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+            {tekstrekkeOverride !== null && (
+              <p
+                style={{
+                  fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif",
+                  fontSize: "10px",
+                  color: "var(--muted)",
+                  marginTop: "6px",
+                  fontStyle: "italic",
+                }}
+              >
+                Tekstrekke {tekstrekkeOverride} er valgt manuelt.
+              </p>
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -2250,6 +2315,29 @@ function lsSaveSeries(s: string) {
   }
 }
 
+// ── localStorage tekstrekke override ──────────────────────────────────────────
+
+const LS_TEKSTREKKE = "smb_tekstrekke";
+
+function lsLoadTekstrekke(): number | null {
+  try {
+    const v = localStorage.getItem(LS_TEKSTREKKE);
+    const n = v ? parseInt(v, 10) : NaN;
+    return [1, 2, 3].includes(n) ? n : null;
+  } catch {
+    return null;
+  }
+}
+
+function lsSaveTekstrekke(t: number | null) {
+  try {
+    if (t === null) localStorage.removeItem(LS_TEKSTREKKE);
+    else localStorage.setItem(LS_TEKSTREKKE, String(t));
+  } catch {
+    /* ignore */
+  }
+}
+
 function formatDate(iso: string): string {
   const d = new Date(iso);
   const days = Math.floor((Date.now() - d.getTime()) / 86_400_000);
@@ -2473,6 +2561,7 @@ export default function Home() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [series, setSeries] = useState<string>("dnk");
+  const [tekstrekkeOverride, setTekstrekkeOverride] = useState<number | null>(null);
   const [churchYearDay, setChurchYearDay] = useState<ChurchYearDay | null>(
     null,
   );
@@ -2509,6 +2598,7 @@ export default function Home() {
   useEffect(() => {
     setSessions(lsLoadSessions());
     setSeries(lsLoadSeries());
+    setTekstrekkeOverride(lsLoadTekstrekke());
   }, []);
 
   // Auto-save whenever messages change
@@ -2599,7 +2689,7 @@ export default function Home() {
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: newMessages, series, bypassCache }),
+        body: JSON.stringify({ messages: newMessages, series, bypassCache, tekstrekkeOverride }),
       });
 
       if (!response.ok || !response.body) throw new Error("Request failed");
@@ -2798,6 +2888,11 @@ export default function Home() {
                 onSeriesChange={(s) => {
                   setSeries(s);
                   lsSaveSeries(s);
+                }}
+                tekstrekkeOverride={tekstrekkeOverride}
+                onTekstrekkeChange={(t) => {
+                  setTekstrekkeOverride(t);
+                  lsSaveTekstrekke(t);
                 }}
               />
               <div

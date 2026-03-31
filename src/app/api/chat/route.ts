@@ -185,6 +185,22 @@ async function fetchForossPosts(flatIds: string[]): Promise<ForossPost[]> {
   return posts ?? [];
 }
 
+async function fetchForossPostsByChurchDay(
+  dayName: string,
+): Promise<ForossPost[]> {
+  const posts = await sanity.fetch<ForossPost[]>(
+    `*[_type == "post" && $dayName in kirkedagreference[]._ref] | order(publishedAt desc) {
+      title,
+      slug,
+      mainImage { asset -> { url } },
+      "section": section -> { title, slug },
+      "authors": authors[] -> { name }
+    }[0...5]`,
+    { dayName },
+  );
+  return posts ?? [];
+}
+
 async function fetchForossPodcasts(
   flatIds: string[],
   userQuery: string,
@@ -408,15 +424,52 @@ const LOOKUP_GENERIC = new Set([
 ]);
 
 /**
+ * Run a named-day query, preferring the nearest upcoming occurrence.
+ * `pattern` is the ILIKE pattern for sunday_name.
+ */
+async function queryByNamePattern(
+  pattern: string,
+  series: string,
+  tekstrekke: number,
+  today: string,
+): Promise<ChurchYearDay | null> {
+  const { data: upcoming } = await supabase
+    .from("church_year_day")
+    .select("*")
+    .eq("series", series)
+    .eq("tekstrekke", tekstrekke)
+    .ilike("sunday_name", pattern)
+    .gte("dato", today)
+    .order("dato", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (upcoming) return upcoming as ChurchYearDay;
+
+  const { data: past } = await supabase
+    .from("church_year_day")
+    .select("*")
+    .eq("series", series)
+    .eq("tekstrekke", tekstrekke)
+    .ilike("sunday_name", pattern)
+    .lt("dato", today)
+    .order("dato", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return past ? (past as ChurchYearDay) : null;
+}
+
+/**
  * Try a direct ILIKE lookup against sunday_name using content words extracted
  * from the message. Longest words are tried first (most specific).
  * For ordinal queries ("3. søndag i treenighetstiden") the ordinal is anchored
  * so "3." only matches rows that start with "3.".
+ * Always returns the nearest upcoming occurrence of the matched day name.
  */
 async function lookupByText(
   message: string,
   series: string,
   tekstrekke: number,
+  today: string,
 ): Promise<ChurchYearDay | null> {
   const lower = message.toLowerCase();
 
@@ -430,31 +483,25 @@ async function lookupByText(
   const ordinalMatch = lower.match(/\b(\d+)\.\s/);
   if (ordinalMatch) {
     for (const word of words) {
-      const { data } = await supabase
-        .from("church_year_day")
-        .select("*")
-        .eq("series", series)
-        .eq("tekstrekke", tekstrekke)
-        .ilike("sunday_name", `${ordinalMatch[1]}. %${word}%`)
-        .order("dato", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (data) return data as ChurchYearDay;
+      const result = await queryByNamePattern(
+        `${ordinalMatch[1]}. %${word}%`,
+        series,
+        tekstrekke,
+        today,
+      );
+      if (result) return result;
     }
   }
 
   // Substring match on the longest content word
   for (const word of words) {
-    const { data } = await supabase
-      .from("church_year_day")
-      .select("*")
-      .eq("series", series)
-      .eq("tekstrekke", tekstrekke)
-      .ilike("sunday_name", `%${word}%`)
-      .order("dato", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (data) return data as ChurchYearDay;
+    const result = await queryByNamePattern(
+      `%${word}%`,
+      series,
+      tekstrekke,
+      today,
+    );
+    if (result) return result;
   }
 
   return null;
@@ -467,9 +514,7 @@ async function lookupByText(
  *  1a. Direct text match (ILIKE with content words from message — most reliable for named days)
  *  1b. Embedding similarity fallback (handles typos, synonyms, alternate phrasings)
  *  2.  Explicit date in message ("7. juni", "første mai", …)
- *  3.  Date fallback — only when message has sermon/church context:
- *      a. Nearest upcoming day within 7 days
- *      b. Most recent past day
+ *  3.  Default fallback — nearest upcoming day (always active)
  */
 async function lookupChurchYearDay(
   message: string,
@@ -479,10 +524,12 @@ async function lookupChurchYearDay(
   today: string,
 ): Promise<ChurchYearDay | null> {
   // 1a. Direct text match — fast and precise for exact/near-exact name mentions
-  const textMatch = await lookupByText(message, series, tekstrekke);
+  // Returns the nearest upcoming occurrence of the matched named day.
+  const textMatch = await lookupByText(message, series, tekstrekke, today);
   if (textMatch) return textMatch;
 
-  // 1b. Embedding fallback — catches typos, synonyms, alternate phrasings
+  // 1b. Embedding fallback — catches typos, synonyms, alternate phrasings.
+  // From the similarity-ranked results, prefer the nearest upcoming occurrence.
   const { data: embeddingMatches, error: rpcLookupError } = await supabase.rpc(
     "match_church_year_day",
     { query_embedding: queryEmbedding, series_filter: series, tekstrekke_filter: tekstrekke },
@@ -491,7 +538,13 @@ async function lookupChurchYearDay(
     console.error("[match_church_year_day] RPC error:", rpcLookupError.message);
   }
   if (embeddingMatches && embeddingMatches.length > 0) {
-    return embeddingMatches[0] as ChurchYearDay;
+    // Among top similarity matches, pick the best-ranked one that is upcoming;
+    // fall back to the top match if all are in the past.
+    const topName = (embeddingMatches[0] as ChurchYearDay).sunday_name;
+    const upcoming = (embeddingMatches as ChurchYearDay[]).find(
+      (d) => d.sunday_name === topName && d.dato >= today,
+    );
+    return upcoming ?? (embeddingMatches[0] as ChurchYearDay);
   }
 
   // 2. Explicit date extracted from message
@@ -509,25 +562,19 @@ async function lookupChurchYearDay(
     if (data) return data as ChurchYearDay;
   }
 
-  // 3. Date fallback — only for messages about sermons / Sunday service
-  if (!hasChurchContext(message)) return null;
-
-  // Prefer the nearest *upcoming* day within 7 days (e.g. Skjærtorsdag when
-  // it's Tuesday of Holy Week), then fall back to the most recent past day.
-  const nextWeek = addDays(today, 7);
-
+  // 3. Default fallback — always return the nearest upcoming church year day
   const { data: upcoming } = await supabase
     .from("church_year_day")
     .select("*")
     .eq("series", series)
     .eq("tekstrekke", tekstrekke)
     .gte("dato", today)
-    .lte("dato", nextWeek)
     .order("dato", { ascending: true })
     .limit(1)
     .maybeSingle();
   if (upcoming) return upcoming as ChurchYearDay;
 
+  // Last resort: most recent past day (end of church year edge case)
   const { data: past } = await supabase
     .from("church_year_day")
     .select("*")
@@ -546,7 +593,8 @@ export async function POST(req: Request): Promise<Response> {
       messages,
       series,
       bypassCache,
-    }: { messages: Message[]; series?: string; bypassCache?: boolean } =
+      tekstrekkeOverride,
+    }: { messages: Message[]; series?: string; bypassCache?: boolean; tekstrekkeOverride?: number | null } =
       await req.json();
 
     const lastUserMessage = messages.findLast((m) => m.role === "user");
@@ -564,8 +612,9 @@ export async function POST(req: Request): Promise<Response> {
     });
     const queryEmbedding = embeddingResponse.data[0].embedding;
 
-    // 1b. Determine tekstrekke — respect explicit user request, otherwise derive from date
+    // 1b. Determine tekstrekke — UI override takes priority, then explicit mention in message, then auto-compute from date
     const tekstrekke =
+      (tekstrekkeOverride != null ? tekstrekkeOverride : null) ??
       extractTekstrekkeFromMessage(lastUserMessage.content) ??
       computeCurrentTekstrekke(today);
 
@@ -641,7 +690,7 @@ export async function POST(req: Request): Promise<Response> {
       matchedVerses as MatchedVerse[],
     );
 
-    const [{ data: surrounding }, forossPosts, forossPodcasts] =
+    const [{ data: surrounding }, bibleRefPosts, churchDayPosts, forossPodcasts] =
       await Promise.all([
         supabase
           .from("verse_chapter_book_references")
@@ -652,8 +701,19 @@ export async function POST(req: Request): Promise<Response> {
           .order("chapternumber")
           .order("versenumber"),
         fetchForossPosts(flatIds),
+        churchYearDay ? fetchForossPostsByChurchDay(churchYearDay.name) : Promise.resolve<ForossPost[]>([]),
         fetchForossPodcasts(flatIds, lastUserMessage.content),
       ]);
+
+    // Merge posts, deduplicate by slug, church day posts first
+    const seenSlugs = new Set<string>();
+    const forossPosts: ForossPost[] = [];
+    for (const p of [...churchDayPosts, ...bibleRefPosts]) {
+      if (!seenSlugs.has(p.slug.current)) {
+        seenSlugs.add(p.slug.current);
+        forossPosts.push(p);
+      }
+    }
 
     const surroundingRows = (surrounding ?? []) as VerseRow[];
 
