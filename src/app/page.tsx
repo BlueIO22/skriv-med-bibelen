@@ -17,6 +17,7 @@ import {
   faExternalLink,
   faHeadphones,
   faPlus,
+  faRotateRight,
   faTrash,
   faXmark,
 } from "@fortawesome/free-solid-svg-icons";
@@ -340,10 +341,12 @@ function AssistantMessage({
   content,
   isStreaming,
   onRefClick,
+  onRetry,
 }: {
   content: string;
   isStreaming: boolean;
   onRefClick: (ref: string) => void;
+  onRetry?: () => void;
 }) {
   const [copied, setCopied] = useState(false);
 
@@ -377,31 +380,62 @@ function AssistantMessage({
             <SectionLabel>Bibelens ord</SectionLabel>
           </div>
 
-          {/* Copy button — visible on hover via CSS */}
+          {/* Action buttons — visible on hover via CSS */}
           {!isStreaming && content && (
-            <button
-              onClick={handleCopy}
-              title="Kopier svar"
-              className="msg-copy-btn"
-              style={{
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                gap: "5px",
-                color: copied ? "var(--gold)" : "var(--muted)",
-                fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif",
-                fontSize: "10px",
-                fontWeight: 500,
-                letterSpacing: "0.08em",
-                textTransform: "uppercase",
-                padding: "2px 0",
-              }}
-            >
-              {copied ? <CheckIcon size={11} /> : <CopyIcon size={11} />}
-              {copied ? "Kopiert" : "Kopier"}
-            </button>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              {onRetry && (
+                <button
+                  onClick={onRetry}
+                  title="Prøv på nytt (tøm cache)"
+                  className="msg-copy-btn"
+                  style={{
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "5px",
+                    color: "var(--muted)",
+                    fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif",
+                    fontSize: "10px",
+                    fontWeight: 500,
+                    letterSpacing: "0.08em",
+                    textTransform: "uppercase",
+                    padding: "2px 0",
+                  }}
+                >
+                  <FontAwesomeIcon
+                    icon={faRotateRight}
+                    aria-hidden
+                    style={{ fontSize: "11px", width: "11px", height: "11px" }}
+                  />
+                  Prøv igjen
+                </button>
+              )}
+              <button
+                onClick={handleCopy}
+                title="Kopier svar"
+                className="msg-copy-btn"
+                style={{
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "5px",
+                  color: copied ? "var(--gold)" : "var(--muted)",
+                  fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif",
+                  fontSize: "10px",
+                  fontWeight: 500,
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase",
+                  padding: "2px 0",
+                }}
+              >
+                {copied ? <CheckIcon size={11} /> : <CopyIcon size={11} />}
+                {copied ? "Kopiert" : "Kopier"}
+              </button>
+            </div>
           )}
         </div>
 
@@ -613,13 +647,9 @@ function AssistantMessage({
 function SettingsPopover({
   series,
   onSeriesChange,
-  churchYearMode,
-  onChurchYearModeChange,
 }: {
   series: string;
   onSeriesChange: (s: string) => void;
-  churchYearMode: boolean;
-  onChurchYearModeChange: (v: boolean) => void;
 }) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -717,59 +747,6 @@ function SettingsPopover({
             </div>
           </div>
 
-          <div
-            style={{
-              height: "1px",
-              background: "var(--rule)",
-              margin: "10px 0",
-            }}
-          />
-
-          <label
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              cursor: "pointer",
-              gap: "8px",
-            }}
-          >
-            <span
-              style={{
-                fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif",
-                fontSize: "13px",
-                fontWeight: 400,
-                color: "var(--ink-soft)",
-              }}
-            >
-              Kirkeåret-modus
-            </span>
-            <input
-              type="checkbox"
-              checked={churchYearMode}
-              onChange={(e) => onChurchYearModeChange(e.target.checked)}
-              style={{
-                accentColor: "var(--gold)",
-                width: "15px",
-                height: "15px",
-                cursor: "pointer",
-                flexShrink: 0,
-              }}
-            />
-          </label>
-          {churchYearMode && (
-            <p
-              style={{
-                fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif",
-                fontSize: "11px",
-                color: "var(--muted)",
-                lineHeight: 1.5,
-                marginTop: "6px",
-              }}
-            >
-              Søndagens GT-, epistel- og evangelietekst legges til i samtalen.
-            </p>
-          )}
         </div>
       )}
     </div>
@@ -2388,7 +2365,6 @@ export default function Home() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [series, setSeries] = useState<string>("dnk");
-  const [churchYearMode, setChurchYearMode] = useState(false);
   const [churchYearDay, setChurchYearDay] = useState<ChurchYearDay | null>(
     null,
   );
@@ -2468,10 +2444,33 @@ export default function Home() {
     if (currentSessionId === id) startNew();
   }
 
-  async function sendMessage(content: string) {
+  function retryLastMessage() {
+    // Find the index of the last user message
+    let lastUserIdx = -1;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === "user") {
+        lastUserIdx = i;
+        break;
+      }
+    }
+    if (lastUserIdx === -1) return;
+    const lastUserContent = messages[lastUserIdx].content;
+    const baseMessages = messages.slice(0, lastUserIdx);
+    sendMessage(lastUserContent, { bypassCache: true, baseMessages });
+  }
+
+  async function sendMessage(
+    content: string,
+    opts: { bypassCache?: boolean; baseMessages?: Message[] } = {},
+  ) {
+    const { bypassCache = false, baseMessages } = opts;
     if (!content.trim() || isLoading) return;
-    const lastUserMsg = [...messages].reverse().find((m) => m.role === "user");
-    if (lastUserMsg && lastUserMsg.content.trim() === content.trim()) return;
+
+    // Skip duplicate guard when explicit base messages are supplied (e.g. retry)
+    if (!baseMessages) {
+      const lastUserMsg = [...messages].reverse().find((m) => m.role === "user");
+      if (lastUserMsg && lastUserMsg.content.trim() === content.trim()) return;
+    }
 
     let sessionId = currentSessionId;
     if (!sessionId) {
@@ -2482,7 +2481,7 @@ export default function Home() {
     }
 
     const userMessage: Message = { role: "user", content: content.trim() };
-    const newMessages = [...messages, userMessage];
+    const newMessages = [...(baseMessages ?? messages), userMessage];
     setMessages(newMessages);
     setInput("");
     setIsLoading(true);
@@ -2492,7 +2491,7 @@ export default function Home() {
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: newMessages, series, churchYearMode }),
+        body: JSON.stringify({ messages: newMessages, series, bypassCache }),
       });
 
       if (!response.ok || !response.body) throw new Error("Request failed");
@@ -2692,8 +2691,6 @@ export default function Home() {
                   setSeries(s);
                   lsSaveSeries(s);
                 }}
-                churchYearMode={churchYearMode}
-                onChurchYearModeChange={setChurchYearMode}
               />
               <div
                 className="nb-badge"
@@ -2760,6 +2757,11 @@ export default function Home() {
                       msg.role === "assistant"
                     }
                     onRefClick={handleInlineRefClick}
+                    onRetry={
+                      !isLoading && i === messages.length - 1
+                        ? retryLastMessage
+                        : undefined
+                    }
                   />
                 ),
               )}

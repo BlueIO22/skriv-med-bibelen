@@ -41,9 +41,9 @@ export type ChurchYearDay = {
   sunday_name: string;
   tekstrekke: number;
   dato: string;
-  ot_reference: string;
-  epistle_reference: string;
-  gospel_reference: string;
+  ot_reference: string | null;
+  epistle_reference: string | null;
+  gospel_reference: string | null;
 };
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -211,7 +211,8 @@ async function fetchChurchYearVerses(day: ChurchYearDay): Promise<{
   epistleText: string;
   gospelText: string;
 }> {
-  async function fetchRef(ref: string): Promise<string> {
+  async function fetchRef(ref: string | null): Promise<string> {
+    if (!ref) return "";
     const parsed = parseChurchYearRef(ref);
     if (!parsed) return `(Kunne ikke tolke referansen: ${ref})`;
     const { fullBookName, chapter, fromVerse, toVerse } = parsed;
@@ -255,23 +256,288 @@ const NO_MONTHS: Record<string, string> = {
   desember: "12",
 };
 
-/** Extract an ISO date (YYYY-MM-DD) from a Norwegian message, or return null. */
-function extractDateFromMessage(text: string): string | null {
-  // ISO format: 2026-04-06
+const NO_ORDINALS: Record<string, number> = {
+  første: 1,
+  andre: 2,
+  tredje: 3,
+  fjerde: 4,
+  femte: 5,
+  sjette: 6,
+  syvende: 7,
+  sjuende: 7,
+  åttende: 8,
+  niende: 9,
+  tiende: 10,
+  ellevte: 11,
+  tolvte: 12,
+  trettende: 13,
+  fjortende: 14,
+  femtende: 15,
+  sekstende: 16,
+  syttende: 17,
+  attende: 18,
+  nittende: 19,
+  tjuende: 20,
+  tjueførste: 21,
+  tjueandre: 22,
+  tjuetredje: 23,
+  tjuefjerde: 24,
+  tjuefemte: 25,
+  tjuesjette: 26,
+  tjuesyvende: 27,
+};
+
+
+/**
+ * Returns the first Sunday of Advent for a given calendar year.
+ * Advent 1 = the Sunday that is exactly 3 weeks before the 4th Sunday of Advent,
+ * where the 4th Sunday of Advent is the last Sunday on or before Dec 25.
+ */
+function firstSundayOfAdvent(year: number): Date {
+  const christmas = new Date(year, 11, 25);
+  const fourthAdvent = new Date(year, 11, 25 - christmas.getDay());
+  return new Date(fourthAdvent.getFullYear(), fourthAdvent.getMonth(), fourthAdvent.getDate() - 21);
+}
+
+/**
+ * Computes the active tekstrekke (1, 2, or 3) for a given date.
+ * The church year starts on the first Sunday of Advent.
+ * 2026 church year = tekstrekke 1, cycling every 3 years.
+ */
+function computeCurrentTekstrekke(today: string): number {
+  const todayDate = new Date(today);
+  const calYear = todayDate.getFullYear();
+  const churchYear = todayDate >= firstSundayOfAdvent(calYear) ? calYear + 1 : calYear;
+  return ((churchYear - 2026) % 3 + 3) % 3 + 1;
+}
+
+/** Returns the explicit tekstrekke (1–3) if the user mentioned it, otherwise null. */
+function extractTekstrekkeFromMessage(message: string): number | null {
+  const match = message.match(/\b(?:tekstrekke|rekke)\s*([123])\b/i);
+  return match ? parseInt(match[1], 10) : null;
+}
+
+/** When a date has no year, pick current year; advance to next year if already past. */
+function inferYear(day: string, month: string, todayStr: string): string {
+  const todayDate = new Date(todayStr);
+  const year = todayDate.getFullYear();
+  const candidate = new Date(`${year}-${month}-${day}`);
+  return `${candidate < todayDate ? year + 1 : year}-${month}-${day}`;
+}
+
+/**
+ * Extract an ISO date (YYYY-MM-DD) from a Norwegian message, or return null.
+ * Handles: ISO, "6. april 2026", "6. juni" (no year), "første mai", "syvende juni".
+ */
+function extractDateFromMessage(text: string, today: string): string | null {
+  // 1. ISO: 2026-04-06
   const isoMatch = text.match(/\b(\d{4})-(\d{2})-(\d{2})\b/);
   if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
 
-  // Norwegian: "6. april 2026" or "6 april 2026"
-  const noMatch = text.match(
+  // 2. "6. april 2026"
+  const noWithYear = text.match(
     /\b(\d{1,2})\.?\s+(januar|februar|mars|april|mai|juni|juli|august|september|oktober|november|desember)\s+(\d{4})\b/i,
   );
-  if (noMatch) {
-    const day = noMatch[1].padStart(2, "0");
-    const month = NO_MONTHS[noMatch[2].toLowerCase()];
-    return `${noMatch[3]}-${month}-${day}`;
+  if (noWithYear) {
+    return `${noWithYear[3]}-${NO_MONTHS[noWithYear[2].toLowerCase()]}-${noWithYear[1].padStart(2, "0")}`;
+  }
+
+  // 3. Ordinal + month: "første mai", "syvende juni"
+  const ordinalKeys = Object.keys(NO_ORDINALS).join("|");
+  const ordinalMonthMatch = text.match(
+    new RegExp(
+      `\\b(${ordinalKeys})\\s+(januar|februar|mars|april|mai|juni|juli|august|september|oktober|november|desember)\\b`,
+      "i",
+    ),
+  );
+  if (ordinalMonthMatch) {
+    const day = String(
+      NO_ORDINALS[ordinalMonthMatch[1].toLowerCase()],
+    ).padStart(2, "0");
+    const month = NO_MONTHS[ordinalMonthMatch[2].toLowerCase()];
+    return inferYear(day, month, today);
+  }
+
+  // 4. "7. juni" or "7 juni" (no year)
+  const numNoYear = text.match(
+    /\b(\d{1,2})\.?\s+(januar|februar|mars|april|mai|juni|juli|august|september|oktober|november|desember)\b/i,
+  );
+  if (numNoYear) {
+    const day = numNoYear[1].padStart(2, "0");
+    const month = NO_MONTHS[numNoYear[2].toLowerCase()];
+    return inferYear(day, month, today);
   }
 
   return null;
+}
+
+/**
+ * True when the message is clearly about a Sunday service / sermon preparation.
+ * Only used to decide whether the date fallback fires — the name-based path
+ * (e.g. "palmesøndag") is always tried regardless.
+ */
+function hasChurchContext(message: string): boolean {
+  const lower = message.toLowerCase();
+  return [
+    "preke", "preken", "preike",
+    "tale ", "talen", "taler",
+    "søndag",
+    "tekstene", "søndagens tekst",
+    "kirkeåret", "kirkeår",
+    "gudstjeneste",
+    "epistel", "evangelium",
+    "gt-tekst",
+  ].some((w) => lower.includes(w));
+}
+
+/** Add N days to a YYYY-MM-DD string, returns a new YYYY-MM-DD string. */
+function addDays(dateStr: string, n: number): string {
+  const d = new Date(dateStr);
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Words too generic to use as church-year-day name lookup terms.
+ * Anything that appears in almost every sunday_name or is a common question word.
+ */
+const LOOKUP_GENERIC = new Set([
+  "tekstene", "tekstrekke", "søndagen", "søndagens",
+  "kirkeåret", "gudstjeneste", "evangelium", "epistel",
+  "fortelle", "beskriv", "tekster", "preken", "preike", "preke",
+]);
+
+/**
+ * Try a direct ILIKE lookup against sunday_name using content words extracted
+ * from the message. Longest words are tried first (most specific).
+ * For ordinal queries ("3. søndag i treenighetstiden") the ordinal is anchored
+ * so "3." only matches rows that start with "3.".
+ */
+async function lookupByText(
+  message: string,
+  series: string,
+  tekstrekke: number,
+): Promise<ChurchYearDay | null> {
+  const lower = message.toLowerCase();
+
+  const words = (lower.match(/[a-zA-ZæøåÆØÅ]+/g) ?? [])
+    .filter((w) => w.length > 6 && !LOOKUP_GENERIC.has(w))
+    .sort((a, b) => b.length - a.length); // longest = most specific first
+
+  if (words.length === 0) return null;
+
+  // Ordinal-anchored search: "3. søndag i treenighetstiden" → "3. %treenighetstiden%"
+  const ordinalMatch = lower.match(/\b(\d+)\.\s/);
+  if (ordinalMatch) {
+    for (const word of words) {
+      const { data } = await supabase
+        .from("church_year_day")
+        .select("*")
+        .eq("series", series)
+        .eq("tekstrekke", tekstrekke)
+        .ilike("sunday_name", `${ordinalMatch[1]}. %${word}%`)
+        .order("dato", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (data) return data as ChurchYearDay;
+    }
+  }
+
+  // Substring match on the longest content word
+  for (const word of words) {
+    const { data } = await supabase
+      .from("church_year_day")
+      .select("*")
+      .eq("series", series)
+      .eq("tekstrekke", tekstrekke)
+      .ilike("sunday_name", `%${word}%`)
+      .order("dato", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (data) return data as ChurchYearDay;
+  }
+
+  return null;
+}
+
+/**
+ * Look up the relevant church year day for a given user message.
+ *
+ * Priority:
+ *  1a. Direct text match (ILIKE with content words from message — most reliable for named days)
+ *  1b. Embedding similarity fallback (handles typos, synonyms, alternate phrasings)
+ *  2.  Explicit date in message ("7. juni", "første mai", …)
+ *  3.  Date fallback — only when message has sermon/church context:
+ *      a. Nearest upcoming day within 7 days
+ *      b. Most recent past day
+ */
+async function lookupChurchYearDay(
+  message: string,
+  queryEmbedding: number[],
+  series: string,
+  tekstrekke: number,
+  today: string,
+): Promise<ChurchYearDay | null> {
+  // 1a. Direct text match — fast and precise for exact/near-exact name mentions
+  const textMatch = await lookupByText(message, series, tekstrekke);
+  if (textMatch) return textMatch;
+
+  // 1b. Embedding fallback — catches typos, synonyms, alternate phrasings
+  const { data: embeddingMatches, error: rpcLookupError } = await supabase.rpc(
+    "match_church_year_day",
+    { query_embedding: queryEmbedding, series_filter: series, tekstrekke_filter: tekstrekke },
+  );
+  if (rpcLookupError) {
+    console.error("[match_church_year_day] RPC error:", rpcLookupError.message);
+  }
+  if (embeddingMatches && embeddingMatches.length > 0) {
+    return embeddingMatches[0] as ChurchYearDay;
+  }
+
+  // 2. Explicit date extracted from message
+  const explicitDate = extractDateFromMessage(message, today);
+  if (explicitDate) {
+    const { data } = await supabase
+      .from("church_year_day")
+      .select("*")
+      .eq("series", series)
+      .eq("tekstrekke", tekstrekke)
+      .lte("dato", explicitDate)
+      .order("dato", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (data) return data as ChurchYearDay;
+  }
+
+  // 3. Date fallback — only for messages about sermons / Sunday service
+  if (!hasChurchContext(message)) return null;
+
+  // Prefer the nearest *upcoming* day within 7 days (e.g. Skjærtorsdag when
+  // it's Tuesday of Holy Week), then fall back to the most recent past day.
+  const nextWeek = addDays(today, 7);
+
+  const { data: upcoming } = await supabase
+    .from("church_year_day")
+    .select("*")
+    .eq("series", series)
+    .eq("tekstrekke", tekstrekke)
+    .gte("dato", today)
+    .lte("dato", nextWeek)
+    .order("dato", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (upcoming) return upcoming as ChurchYearDay;
+
+  const { data: past } = await supabase
+    .from("church_year_day")
+    .select("*")
+    .eq("series", series)
+    .eq("tekstrekke", tekstrekke)
+    .lte("dato", today)
+    .order("dato", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return past ? (past as ChurchYearDay) : null;
 }
 
 export async function POST(req: Request): Promise<Response> {
@@ -279,14 +545,16 @@ export async function POST(req: Request): Promise<Response> {
     const {
       messages,
       series,
-      churchYearMode,
-    }: { messages: Message[]; series?: string; churchYearMode?: boolean } =
+      bypassCache,
+    }: { messages: Message[]; series?: string; bypassCache?: boolean } =
       await req.json();
 
     const lastUserMessage = messages.findLast((m) => m.role === "user");
     if (!lastUserMessage) {
       return Response.json({ error: "No user message" }, { status: 400 });
     }
+
+    const today = new Date().toISOString().slice(0, 10);
 
     // 1. Generate embedding (512 dims to match stored vectors)
     const embeddingResponse = await openai.embeddings.create({
@@ -296,10 +564,40 @@ export async function POST(req: Request): Promise<Response> {
     });
     const queryEmbedding = embeddingResponse.data[0].embedding;
 
-    // 1b. Check semantic cache — skip when churchYearMode is active (context differs per Sunday)
-    if (!churchYearMode) {
+    // 1b. Determine tekstrekke — respect explicit user request, otherwise derive from date
+    const tekstrekke =
+      extractTekstrekkeFromMessage(lastUserMessage.content) ??
+      computeCurrentTekstrekke(today);
+
+    // 1c. Look up church year day (always on — by name, date, or today)
+    const churchYearDay = await lookupChurchYearDay(
+      lastUserMessage.content,
+      queryEmbedding,
+      series ?? "dnk",
+      tekstrekke,
+      today,
+    );
+
+    // 1d. Build cache embedding:
+    //   - No church year day  → use queryEmbedding as-is (free)
+    //   - Church year day found → embed (query + sunday_name + tekstrekke) so two users
+    //     asking the same thing on the same Sunday share a cache hit, but different
+    //     Sundays never collide.
+    let cacheEmbedding = queryEmbedding;
+    if (churchYearDay) {
+      const cacheKeyText = `${lastUserMessage.content}\n[${churchYearDay.sunday_name} T${churchYearDay.tekstrekke}]`;
+      const cacheKeyRes = await openai.embeddings.create({
+        model: "text-embedding-3-small",
+        input: cacheKeyText,
+        dimensions: 512,
+      });
+      cacheEmbedding = cacheKeyRes.data[0].embedding;
+    }
+
+    // 1e. Check semantic cache (skip when client requests a fresh response)
+    if (!bypassCache) {
       const { data: cacheHit } = await supabase.rpc("match_cache", {
-        query_embedding: queryEmbedding,
+        query_embedding: cacheEmbedding,
       });
       if (cacheHit && cacheHit.length > 0) {
         const cached = (cacheHit[0] as { response: string }).response;
@@ -316,26 +614,10 @@ export async function POST(req: Request): Promise<Response> {
       }
     }
 
-    // 1c. Fetch church year texts if mode is active
-    let churchYearDay: ChurchYearDay | null = null;
-    let churchYearVerses: {
-      otText: string;
-      epistleText: string;
-      gospelText: string;
-    } | null = null;
-    if (churchYearMode) {
-      const { data: cyDay } = await supabase
-        .from("church_year_day")
-        .select("*")
-        .eq("series", series ?? "dnk")
-        .order("dato", { ascending: false })
-        .limit(1)
-        .single();
-      if (cyDay) {
-        churchYearDay = cyDay as ChurchYearDay;
-        churchYearVerses = await fetchChurchYearVerses(churchYearDay);
-      }
-    }
+    // 1f. Fetch verse texts for the resolved church year day
+    const churchYearVerses = churchYearDay
+      ? await fetchChurchYearVerses(churchYearDay)
+      : null;
 
     // 2. Semantic search: top 5 matching verses
     const { data: matchedVerses, error: rpcError } = await supabase.rpc(
@@ -470,9 +752,16 @@ FORMATERING:
     chatStream.on("finalMessage", () => {
       if (fullResponse.length > 0) {
         void (async () => {
+          // On bypass, evict the stale entry first so the fresh one wins
+          if (bypassCache) {
+            await supabase
+              .from("query_cache")
+              .delete()
+              .eq("query_text", lastUserMessage.content);
+          }
           await supabase.from("query_cache").insert({
             query_text: lastUserMessage.content,
-            embedding: queryEmbedding,
+            embedding: cacheEmbedding,
             response: fullResponse,
           });
           await supabase.rpc("cleanup_query_cache");

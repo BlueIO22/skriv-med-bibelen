@@ -11,7 +11,8 @@
       "Bash(grep -r \"church\\\\|year\\\\|lectionary\\\\|calend\" /c/Users/mar_s/source/repos/skriv-med-bibelen/src --include=*.ts --include=*.tsx -i)",
       "Bash(grep -r \"verse_chapter_book_references\\\\|bibleChapter\\\\|bibleBook\" /c/Users/mar_s/source/repos/skriv-med-bibelen/src --include=*.ts --include=*.tsx)",
       "Bash(find /c/Users/mar_s/source/repos/skriv-med-bibelen -type f \\\\\\(-name *.sql -o -name *migration* -o -name *schema* -o -name *.prisma \\\\\\))",
-      "Bash(find C:Usersmar_ssourcereposskriv-med-bibelen -name *.sql -o -name *migration* -o -name *.prisma)"
+      "Bash(find C:Usersmar_ssourcereposskriv-med-bibelen -name *.sql -o -name *migration* -o -name *.prisma)",
+      "Bash(npx tsx:*)"
     ]
   }
 }
