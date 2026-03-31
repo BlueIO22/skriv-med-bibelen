@@ -16,7 +16,9 @@
       "Bash(grep -v \"^\\\\s*$\")",
       "Bash(sort -t',' -k6)",
       "Bash(node -e \"require\\(''dotenv''\\)\")",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Bash(grep -rn foross-card C:Usersmar_ssourcereposskriv-med-bibelensrc --include=*.css)",
+      "Bash(awk:*)"
     ]
   }
 }

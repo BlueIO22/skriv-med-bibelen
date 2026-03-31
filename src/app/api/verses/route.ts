@@ -1,4 +1,11 @@
+import { ABBREV_TO_FULLNAME } from "@/lib/book-abbreviations";
 import { supabase } from "@/lib/supabase";
+
+// Display/abbreviation names that differ from the DB newname column
+const DISPLAY_TO_NEWNAME: Record<string, string> = {
+  Filipperne: "Filiperne",
+  Filipperbrevet: "Filiperne",
+};
 
 // Parse our merged display format: "Book chapter" or "Book chapter:seg1.seg2..."
 // where each segment is "N" or "N-M"
@@ -30,7 +37,9 @@ export async function GET(req: Request): Promise<Response> {
   const parsed = parseDisplayRef(ref);
   if (!parsed) return Response.json({ error: "Could not parse ref" }, { status: 400 });
 
-  const { book, chapter, verses } = parsed;
+  const { chapter, verses } = parsed;
+  // Resolve abbreviations and display-name aliases to the DB newname
+  const book = ABBREV_TO_FULLNAME[parsed.book] ?? DISPLAY_TO_NEWNAME[parsed.book] ?? parsed.book;
 
   let query = supabase
     .from("verse_chapter_book_references")

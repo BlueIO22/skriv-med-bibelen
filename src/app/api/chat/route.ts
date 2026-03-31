@@ -29,9 +29,15 @@ export type ForossPost = {
 export type ForossPodcast = {
   _id: string;
   title: string;
+  rawUrl: string | null;
   section: { title: string; slug: { current: string } } | null;
   authors: { name: string }[];
-  series: { slug: { current: string } } | null;
+  series: {
+    slug: { current: string };
+    title: string | null;
+    imageUrl: string | null;
+  } | null;
+  kirkedag: { title: string }[] | null;
 };
 
 export type ChurchYearDay = {
@@ -79,8 +85,8 @@ const BOOK_SLUG_MAP: Record<string, string> = {
   Nehemja: "nehemja",
   Ester: "ester",
   Job: "job",
-  Salmene: "salmene",
-  Salme: "salmene",
+  Salmene: "Salme",
+  Salme: "Sal",
   Ordspråkene: "ordsprakene",
   Forkynneren: "forkynneren",
   Høysangen: "hoysangen",
@@ -115,6 +121,7 @@ const BOOK_SLUG_MAP: Record<string, string> = {
   Galaterbrevet: "galaterne",
   Efeserne: "efeserne",
   Efeserbrevet: "efeserne",
+  Filiperne: "filiperne",
   Filipperne: "filiperne",
   Filipperbrevet: "filiperne",
   Kolosserne: "kolosserne",
@@ -213,9 +220,11 @@ async function fetchForossPodcasts(
     )] | order(publishedAt desc) {
       _id,
       title,
+      rawUrl,
       "section": section -> { title, slug },
       "authors": authors[] -> { name },
-      "series": series -> { slug }
+      "series": series -> { slug, title, "imageUrl": image.asset->url },
+      "kirkedag": kirkedag[] -> { title }
     }[0...5]`,
     { ids: flatIds, q: userQuery },
   );
@@ -231,15 +240,15 @@ async function fetchChurchYearVerses(day: ChurchYearDay): Promise<{
     if (!ref) return "";
     const parsed = parseChurchYearRef(ref);
     if (!parsed) return `(Kunne ikke tolke referansen: ${ref})`;
-    const { fullBookName, chapter, fromVerse, toVerse } = parsed;
-    const { data } = await supabase
+    const { fullBookName, chapter, verses } = parsed;
+    let q = supabase
       .from("verse_chapter_book_references")
       .select("versenumber, versecontent, newname_reference")
       .eq("newname", fullBookName)
       .eq("chapternumber", chapter)
-      .gte("versenumber", fromVerse)
-      .lte("versenumber", toVerse)
       .order("versenumber");
+    if (verses.length > 0) q = q.in("versenumber", verses);
+    const { data } = await q;
     if (!data || data.length === 0) return `(Ingen vers funnet for ${ref})`;
     const header =
       (data[0] as { newname_reference: string }).newname_reference ?? ref;
@@ -303,7 +312,6 @@ const NO_ORDINALS: Record<string, number> = {
   tjuesyvende: 27,
 };
 
-
 /**
  * Returns the first Sunday of Advent for a given calendar year.
  * Advent 1 = the Sunday that is exactly 3 weeks before the 4th Sunday of Advent,
@@ -312,7 +320,11 @@ const NO_ORDINALS: Record<string, number> = {
 function firstSundayOfAdvent(year: number): Date {
   const christmas = new Date(year, 11, 25);
   const fourthAdvent = new Date(year, 11, 25 - christmas.getDay());
-  return new Date(fourthAdvent.getFullYear(), fourthAdvent.getMonth(), fourthAdvent.getDate() - 21);
+  return new Date(
+    fourthAdvent.getFullYear(),
+    fourthAdvent.getMonth(),
+    fourthAdvent.getDate() - 21,
+  );
 }
 
 /**
@@ -323,14 +335,25 @@ function firstSundayOfAdvent(year: number): Date {
 function computeCurrentTekstrekke(today: string): number {
   const todayDate = new Date(today);
   const calYear = todayDate.getFullYear();
-  const churchYear = todayDate >= firstSundayOfAdvent(calYear) ? calYear + 1 : calYear;
-  return ((churchYear - 2026) % 3 + 3) % 3 + 1;
+  const churchYear =
+    todayDate >= firstSundayOfAdvent(calYear) ? calYear + 1 : calYear;
+  return ((((churchYear - 2026) % 3) + 3) % 3) + 1;
 }
 
 /** Returns the explicit tekstrekke (1–3) if the user mentioned it, otherwise null. */
 function extractTekstrekkeFromMessage(message: string): number | null {
-  const match = message.match(/\b(?:tekstrekke|rekke)\s*([123])\b/i);
-  return match ? parseInt(match[1], 10) : null;
+  // Match "tekstrekke 1" / "rekke 2" etc.
+  const numericMatch = message.match(/\b(?:tekstrekke|rekke)\s*([123])\b/i);
+  if (numericMatch) return parseInt(numericMatch[1], 10);
+
+  // Match "første/andre/tredje tekstrekke" or "første/andre/tredje rekke"
+  const ordinalMap: Record<string, number> = { første: 1, andre: 2, tredje: 3 };
+  const ordinalMatch = message.match(
+    /\b(første|andre|tredje)\s+(?:tekstrekke|rekke)\b/i,
+  );
+  if (ordinalMatch) return ordinalMap[ordinalMatch[1].toLowerCase()] ?? null;
+
+  return null;
 }
 
 /** When a date has no year, pick current year; advance to next year if already past. */
@@ -395,13 +418,20 @@ function extractDateFromMessage(text: string, today: string): string | null {
 function hasChurchContext(message: string): boolean {
   const lower = message.toLowerCase();
   return [
-    "preke", "preken", "preike",
-    "tale ", "talen", "taler",
+    "preke",
+    "preken",
+    "preike",
+    "tale ",
+    "talen",
+    "taler",
     "søndag",
-    "tekstene", "søndagens tekst",
-    "kirkeåret", "kirkeår",
+    "tekstene",
+    "søndagens tekst",
+    "kirkeåret",
+    "kirkeår",
     "gudstjeneste",
-    "epistel", "evangelium",
+    "epistel",
+    "evangelium",
     "gt-tekst",
   ].some((w) => lower.includes(w));
 }
@@ -418,9 +448,21 @@ function addDays(dateStr: string, n: number): string {
  * Anything that appears in almost every sunday_name or is a common question word.
  */
 const LOOKUP_GENERIC = new Set([
-  "tekstene", "tekstrekke", "søndagen", "søndagens", "søndag",
-  "kirkeåret", "gudstjeneste", "evangelium", "epistel",
-  "fortelle", "beskriv", "tekster", "preken", "preike", "preke",
+  "tekstene",
+  "tekstrekke",
+  "søndagen",
+  "søndagens",
+  "søndag",
+  "kirkeåret",
+  "gudstjeneste",
+  "evangelium",
+  "epistel",
+  "fortelle",
+  "beskriv",
+  "tekster",
+  "preken",
+  "preike",
+  "preke",
 ]);
 
 /**
@@ -482,12 +524,30 @@ async function lookupByText(
   // Ordinal-anchored search: "3. søndag i treenighetstiden" → "3. %treenighetstiden%"
   // Also handles Norwegian ordinal words: "andre søndag i adventstiden" → "2. %adventstiden%"
   const NO_ORDINAL_WORDS: Record<string, number> = {
-    første: 1, andre: 2, tredje: 3, fjerde: 4, femte: 5,
-    sjette: 6, syvende: 7, sjuende: 7, åttende: 8, niende: 9, tiende: 10,
+    første: 1,
+    andre: 2,
+    tredje: 3,
+    fjerde: 4,
+    femte: 5,
+    sjette: 6,
+    syvende: 7,
+    sjuende: 7,
+    åttende: 8,
+    niende: 9,
+    tiende: 10,
   };
-  const wordOrdinalMatch = lower.match(new RegExp(`\\b(${Object.keys(NO_ORDINAL_WORDS).join("|")})\\b`));
+  const wordOrdinalMatch = lower.match(
+    new RegExp(`\\b(${Object.keys(NO_ORDINAL_WORDS).join("|")})\\b`),
+  );
   const numericOrdinal = lower.match(/\b(\d+)\.\s/);
-  const ordinalMatch = numericOrdinal ?? (wordOrdinalMatch ? [null, String(NO_ORDINAL_WORDS[wordOrdinalMatch[1]])] as RegExpMatchArray : null);
+  const ordinalMatch =
+    numericOrdinal ??
+    (wordOrdinalMatch
+      ? ([
+          null,
+          String(NO_ORDINAL_WORDS[wordOrdinalMatch[1]]),
+        ] as RegExpMatchArray)
+      : null);
   if (ordinalMatch) {
     for (const word of words) {
       const result = await queryByNamePattern(
@@ -539,7 +599,11 @@ async function lookupChurchYearDay(
   // From the similarity-ranked results, prefer the nearest upcoming occurrence.
   const { data: embeddingMatches, error: rpcLookupError } = await supabase.rpc(
     "match_church_year_day",
-    { query_embedding: queryEmbedding, series_filter: series, tekstrekke_filter: tekstrekke },
+    {
+      query_embedding: queryEmbedding,
+      series_filter: series,
+      tekstrekke_filter: tekstrekke,
+    },
   );
   if (rpcLookupError) {
     console.error("[match_church_year_day] RPC error:", rpcLookupError.message);
@@ -601,8 +665,16 @@ export async function POST(req: Request): Promise<Response> {
       series,
       bypassCache,
       tekstrekkeOverride,
-    }: { messages: Message[]; series?: string; bypassCache?: boolean; tekstrekkeOverride?: number | null } =
-      await req.json();
+      churchYearEnabled = true,
+      responseMode = "grounded",
+    }: {
+      messages: Message[];
+      series?: string;
+      bypassCache?: boolean;
+      tekstrekkeOverride?: number | null;
+      churchYearEnabled?: boolean;
+      responseMode?: "verses" | "grounded" | "full";
+    } = await req.json();
 
     const lastUserMessage = messages.findLast((m) => m.role === "user");
     if (!lastUserMessage) {
@@ -612,36 +684,52 @@ export async function POST(req: Request): Promise<Response> {
     const today = new Date().toISOString().slice(0, 10);
 
     // 1. Generate embedding (512 dims to match stored vectors)
+    // Use the last 3 messages for context-aware semantic search — follow-up
+    // questions ("hva sier Paulus om dette?") get grounded in the conversation.
+    const queryInput = messages
+      .slice(-3)
+      .map((m) => m.content)
+      .join("\n\n");
     const embeddingResponse = await openai.embeddings.create({
       model: "text-embedding-3-small",
-      input: lastUserMessage.content,
+      input: queryInput,
       dimensions: 512,
     });
     const queryEmbedding = embeddingResponse.data[0].embedding;
 
-    // 1b. Determine tekstrekke — UI override takes priority, then explicit mention in message, then auto-compute from date
+    // 1b. Determine tekstrekke — UI override takes priority, then the most recent explicit
+    //     mention anywhere in the conversation history, then auto-compute from date.
+    const tekstrekkeFromHistory = messages
+      .filter((m) => m.role === "user")
+      .reduceRight(
+        (found: number | null, m) =>
+          found ?? extractTekstrekkeFromMessage(m.content),
+        null,
+      );
     const tekstrekke =
       (tekstrekkeOverride != null ? tekstrekkeOverride : null) ??
-      extractTekstrekkeFromMessage(lastUserMessage.content) ??
+      tekstrekkeFromHistory ??
       computeCurrentTekstrekke(today);
 
-    // 1c. Look up church year day (always on — by name, date, or today)
-    const churchYearDay = await lookupChurchYearDay(
-      lastUserMessage.content,
-      queryEmbedding,
-      series ?? "dnk",
-      tekstrekke,
-      today,
-    );
+    // 1c. Look up church year day (when enabled — by name, date, or today)
+    const churchYearDay = churchYearEnabled
+      ? await lookupChurchYearDay(
+          lastUserMessage.content,
+          queryEmbedding,
+          series ?? "dnk",
+          tekstrekke,
+          today,
+        )
+      : null;
 
     // 1d. Build cache embedding:
     //   - No church year day  → use queryEmbedding as-is (free)
-    //   - Church year day found → embed (query + sunday_name + tekstrekke) so two users
-    //     asking the same thing on the same Sunday share a cache hit, but different
-    //     Sundays never collide.
+    //   - Church year day found → embed (query + sunday_name + tekstrekke + series) so two
+    //     users asking the same thing on the same Sunday in the same series share a cache hit,
+    //     but different Sundays, tekstrekker, or series never collide.
     let cacheEmbedding = queryEmbedding;
     if (churchYearDay) {
-      const cacheKeyText = `${lastUserMessage.content}\n[${churchYearDay.sunday_name} T${churchYearDay.tekstrekke}]`;
+      const cacheKeyText = `${lastUserMessage.content}\n[${churchYearDay.sunday_name} T${churchYearDay.tekstrekke} ${series ?? "dnk"}]`;
       const cacheKeyRes = await openai.embeddings.create({
         model: "text-embedding-3-small",
         input: cacheKeyText,
@@ -650,24 +738,29 @@ export async function POST(req: Request): Promise<Response> {
       cacheEmbedding = cacheKeyRes.data[0].embedding;
     }
 
-    // 1e. Check semantic cache (skip when client requests a fresh response)
-    if (!bypassCache) {
-      const { data: cacheHit } = await supabase.rpc("match_cache", {
-        query_embedding: cacheEmbedding,
-      });
-      if (cacheHit && cacheHit.length > 0) {
-        const cached = (cacheHit[0] as { response: string }).response;
-        const chunk = JSON.stringify({
-          choices: [{ delta: { content: cached }, index: 0 }],
-        });
-        return new Response(chunk + "\n", {
-          headers: {
-            "Content-Type": "text/event-stream",
-            "Cache-Control": "no-cache",
-            Connection: "keep-alive",
-          },
-        });
-      }
+    // 1e. Run cache check and semantic search in parallel so foross content is
+    //     always available — even on a cache hit.
+    const [cacheResult, verseResult] = await Promise.all([
+      bypassCache
+        ? Promise.resolve({ data: null, error: null })
+        : supabase.rpc("match_cache", {
+            query_embedding: cacheEmbedding,
+            ...(churchYearDay && {
+              p_sunday_name: churchYearDay.sunday_name,
+              p_tekstrekke: churchYearDay.tekstrekke,
+              p_series: series ?? "dnk",
+            }),
+          }),
+      supabase.rpc("match_verses", {
+        query_embedding: queryEmbedding,
+        match_count: 5,
+      }),
+    ]);
+
+    const { data: matchedVerses, error: rpcError } = verseResult;
+
+    if (rpcError || !matchedVerses || matchedVerses.length === 0) {
+      return Response.json({ error: "Verse lookup failed" }, { status: 500 });
     }
 
     // 1f. Fetch verse texts for the resolved church year day
@@ -675,17 +768,7 @@ export async function POST(req: Request): Promise<Response> {
       ? await fetchChurchYearVerses(churchYearDay)
       : null;
 
-    // 2. Semantic search: top 5 matching verses
-    const { data: matchedVerses, error: rpcError } = await supabase.rpc(
-      "match_verses",
-      { query_embedding: queryEmbedding, match_count: 5 },
-    );
-
-    if (rpcError || !matchedVerses || matchedVerses.length === 0) {
-      return Response.json({ error: "Verse lookup failed" }, { status: 500 });
-    }
-
-    // 3. Fetch surrounding verses + foross.no posts + podcasts in parallel
+    // 2. Resolve bible chapter IDs needed for foross lookups
     const orFilter = (matchedVerses as MatchedVerse[])
       .map(
         (v) =>
@@ -697,20 +780,27 @@ export async function POST(req: Request): Promise<Response> {
       matchedVerses as MatchedVerse[],
     );
 
-    const [{ data: surrounding }, bibleRefPosts, churchDayPosts, forossPodcasts] =
-      await Promise.all([
-        supabase
-          .from("verse_chapter_book_references")
-          .select(
-            "newname, chapternumber, versenumber, versecontent, newname_reference",
-          )
-          .or(orFilter)
-          .order("chapternumber")
-          .order("versenumber"),
-        fetchForossPosts(flatIds),
-        churchYearDay ? fetchForossPostsByChurchDay(churchYearDay.id) : Promise.resolve<ForossPost[]>([]),
-        fetchForossPodcasts(flatIds, lastUserMessage.content),
-      ]);
+    // 3. Fetch surrounding verses + foross.no posts + podcasts in parallel
+    const [
+      { data: surrounding },
+      bibleRefPosts,
+      churchDayPosts,
+      forossPodcasts,
+    ] = await Promise.all([
+      supabase
+        .from("verse_chapter_book_references")
+        .select(
+          "newname, chapternumber, versenumber, versecontent, newname_reference",
+        )
+        .or(orFilter)
+        .order("chapternumber")
+        .order("versenumber"),
+      fetchForossPosts(flatIds),
+      churchYearDay
+        ? fetchForossPostsByChurchDay(churchYearDay.id)
+        : Promise.resolve<ForossPost[]>([]),
+      fetchForossPodcasts(flatIds, lastUserMessage.content),
+    ]);
 
     // Merge posts, deduplicate by slug, church day posts first
     const seenSlugs = new Set<string>();
@@ -720,6 +810,35 @@ export async function POST(req: Request): Promise<Response> {
         seenSlugs.add(p.slug.current);
         forossPosts.push(p);
       }
+    }
+
+    // 3b. If there was a cache hit, return the cached response now — with foross headers attached
+    const cacheHit = cacheResult.data;
+    if (cacheHit && cacheHit.length > 0) {
+      const cached = (cacheHit[0] as { response: string }).response;
+      const chunk = JSON.stringify({
+        choices: [{ delta: { content: cached }, index: 0 }],
+      });
+      return new Response(chunk + "\n", {
+        headers: {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          Connection: "keep-alive",
+          "X-Foross-Posts": Buffer.from(JSON.stringify(forossPosts)).toString(
+            "base64",
+          ),
+          "X-Foross-Podcasts": Buffer.from(
+            JSON.stringify(forossPodcasts),
+          ).toString("base64"),
+          ...(churchYearDay
+            ? {
+                "X-Church-Year-Day": Buffer.from(
+                  JSON.stringify(churchYearDay),
+                ).toString("base64"),
+              }
+            : {}),
+        },
+      });
     }
 
     const surroundingRows = (surrounding ?? []) as VerseRow[];
@@ -780,20 +899,31 @@ export async function POST(req: Request): Promise<Response> {
       : null;
 
     // 6. System prompt
+    const modeRules =
+      responseMode === "verses"
+        ? `5. Presenter versene og gi kun kort faktainformasjon om kontekst eller historisk bakgrunn. Ingen tolkninger, ingen utlegging, ingen personlige perspektiver.
+6. Hold svaret kort og faktabasert.`
+        : responseMode === "full"
+          ? `5. Du kan gi utdypende forklaringer, tolkninger og teologisk utlegging av versene. Gå gjerne i dybden.
+6. Gi gjerne ditt perspektiv og del relevant teologisk innsikt, men hold deg til det Bibelen faktisk sier.`
+          : /* grounded */
+            `5. Du kan tolke og forklare versene så lenge tolkningen er klart forankret i selve bibelteksten. Pek på hva teksten sier, ikke hva du mener om den.
+6. Unngå spekulasjon utover det teksten faktisk uttrykker.`;
+
     const systemPrompt = `Du er en bibelveileder som hjelper mennesker å utforske Bibelen på norsk.
-Du har tilgang til følgende bibelvers som er relevante for spørsmålet:
+Følgende bibelvers fra Bibelen (88/07) er hentet frem som relevante for spørsmålet:
 
 ${contextString}
 ${churchYearSection}${forossPostsString ? `\nRelevante artikler fra foross.no:\n${forossPostsString}\n` : ""}${forossPodcastsString ? `\nRelevante episoder fra foross.no:\n${forossPodcastsString}\n` : ""}
 REGLER DU MÅ FØLGE:
-1. Ta utgangspunkt i versene som er gitt ovenfor, men du kan fritt trekke inn andre relevante vers fra hele Bibelen – både Gamle og Nye testamente – når det beriker svaret.
+1. Ta utgangspunkt i versene ovenfor fra Bibelen (88/07). Du kan nevne referanser til andre vers ved navn (f.eks. «Johannes 3:16»), men gjengi aldri verstekst som ikke er inkludert i konteksten ovenfor — be heller leseren om å slå opp verset selv.
 2. Sitér alltid referansen (bok, kapittel og vers) når du bruker et vers, f.eks. "Johannes 3:16". Når du siterer eller omtaler innholdet i et vers, gjengi det alltid nøyaktig og korrekt – aldri parafraser eller oppsummer versteksten med egne ord.
 3. Vær respektfull, omsorgsfull og tydelig i alle svar.
 4. Svar alltid på norsk.
-5. Ikke gjør tolkninger. Fortel gjerne om kontekst, historie etc. men aldri tolkning eller utlegging.
-6. Du skal ikke tolke, mene eller fortelle dine synspunkt.
+${modeRules}
+7. Ikke bruk fraser som «i versene jeg har funnet», «i de versene du har gitt», «det står i din bibel», «basert på versene jeg har tilgang til» eller lignende. Si bare hva Bibelen sier og henvis til den konkrete referansen.
 ${forossRuleNumber ? `${forossRuleNumber}. Hvis en foross.no-artikkel eller episode er relevant, vev lenken naturlig inn i den løpende teksten der den hører hjemme. Ikke legg den i en egen avsluttende seksjon eller liste. Formater lenken alltid som en Markdown-hyperlenke: [tittel](url).` : ""}
-${churchYearRuleNumber ? `${churchYearRuleNumber}. Du har fått søndagens tre tekster fra kirkeåret. Beskriv gjerne tematiske forbindelser mellom GT-teksten, epistelen og evangeliet — hva slags tekster det er, hvem som taler, og hva de sier til hverandre. Ikke tolk eller utlegg.` : ""}
+${churchYearRuleNumber ? `${churchYearRuleNumber}. Du har fått søndagens tre tekster fra kirkeåret. Beskriv gjerne tematiske forbindelser mellom GT-teksten, epistelen og evangeliet — hva slags tekster det er, hvem som taler, og hva de sier til hverandre. ${responseMode === "verses" ? "Ikke tolk eller utlegg." : ""}` : ""}
 
 FORMATERING:
 - Bruk Markdown i alle svar.
@@ -804,7 +934,7 @@ FORMATERING:
 `;
 
     // 7. Stream chat completion
-    const HISTORY_LIMIT = 15;
+    const HISTORY_LIMIT = churchYearEnabled ? 8 : 15;
     const recentMessages = messages.slice(-HISTORY_LIMIT);
     const chatStream = openai.chat.completions.stream({
       model: "gpt-5.4-mini",
@@ -830,6 +960,11 @@ FORMATERING:
             query_text: lastUserMessage.content,
             embedding: cacheEmbedding,
             response: fullResponse,
+            ...(churchYearDay && {
+              sunday_name: churchYearDay.sunday_name,
+              tekstrekke: churchYearDay.tekstrekke,
+              series: series ?? "dnk",
+            }),
           });
           await supabase.rpc("cleanup_query_cache");
         })();

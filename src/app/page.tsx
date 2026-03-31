@@ -5,6 +5,7 @@ import type {
   ForossPodcast,
   ForossPost,
 } from "@/app/api/chat/route";
+import { PodcastCard } from "@/app/PodcastCard";
 import { parseChurchYearRef } from "@/lib/book-abbreviations";
 import {
   faArrowRight,
@@ -16,7 +17,6 @@ import {
   faCog,
   faCopy,
   faExternalLink,
-  faHeadphones,
   faPlus,
   faRotateRight,
   faTrash,
@@ -33,6 +33,12 @@ const EXAMPLE_PROMPTS = [
   "Hva sier Bibelen om kjærlighet?",
   "Hva betyr det å ha tro?",
   "Hva sier Bibelen om tilgivelse?",
+];
+
+const EXAMPLE_PROMPTS_CHURCH_YEAR = [
+  "Jeg skal tale den 17. april",
+  "Hvordan henger tekstene til andre søndag i åpenbaringsstiden ilag?",
+  "Jeg skal tale over første søndag i advent i tredje tekstrekke",
 ];
 
 // ── Bible reference extraction & grouping ────────────────────────────────────
@@ -158,7 +164,16 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 // ── Empty state ───────────────────────────────────────────────────────────────
 
-function EmptyState({ onPrompt }: { onPrompt: (p: string) => void }) {
+function EmptyState({
+  onPrompt,
+  churchYearEnabled,
+}: {
+  onPrompt: (p: string) => void;
+  churchYearEnabled: boolean;
+}) {
+  const prompts = churchYearEnabled
+    ? EXAMPLE_PROMPTS_CHURCH_YEAR
+    : EXAMPLE_PROMPTS;
   return (
     <div
       className="animate-fade-up"
@@ -206,7 +221,7 @@ function EmptyState({ onPrompt }: { onPrompt: (p: string) => void }) {
       {/* Example prompts */}
       <div style={{ width: "100%", maxWidth: "480px" }}>
         <div style={{ borderTop: "1px solid var(--rule)" }}>
-          {EXAMPLE_PROMPTS.map((p, i) => (
+          {prompts.map((p, i) => (
             <button
               key={p}
               onClick={() => onPrompt(p)}
@@ -650,11 +665,17 @@ function SettingsPopover({
   onSeriesChange,
   tekstrekkeOverride,
   onTekstrekkeChange,
+  churchYearEnabled,
+  responseMode,
+  onResponseModeChange,
 }: {
   series: string;
   onSeriesChange: (s: string) => void;
   tekstrekkeOverride: number | null;
   onTekstrekkeChange: (t: number | null) => void;
+  churchYearEnabled: boolean;
+  responseMode: ResponseMode;
+  onResponseModeChange: (m: ResponseMode) => void;
 }) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -763,8 +784,14 @@ function SettingsPopover({
           />
 
           {/* Lectionary year override */}
-          <div>
-            <SectionLabel>Kirkeår</SectionLabel>
+          <div
+            style={{
+              opacity: churchYearEnabled ? 1 : 0.4,
+              transition: "opacity 0.2s",
+              pointerEvents: churchYearEnabled ? "auto" : "none",
+            }}
+          >
+            <SectionLabel>Tekstrekke</SectionLabel>
             <div
               style={{
                 marginTop: "8px",
@@ -783,7 +810,9 @@ function SettingsPopover({
                     style={{
                       flex: 1,
                       padding: "5px 0",
-                      background: active ? "var(--gold-dim)" : "var(--surface2)",
+                      background: active
+                        ? "var(--gold-dim)"
+                        : "var(--surface2)",
                       border: `1px solid ${active ? "var(--gold)" : "var(--rule-mid)"}`,
                       borderRadius: "2px",
                       cursor: "pointer",
@@ -813,6 +842,103 @@ function SettingsPopover({
               </p>
             )}
           </div>
+
+          {/* Divider */}
+          <div
+            style={{
+              height: "1px",
+              background: "var(--rule)",
+              margin: "14px 0",
+            }}
+          />
+
+          {/* Response mode */}
+          <div>
+            <SectionLabel>Svarmodus</SectionLabel>
+            <div
+              style={{
+                marginTop: "8px",
+                display: "flex",
+                flexDirection: "column",
+                gap: "4px",
+              }}
+            >
+              {(
+                [
+                  {
+                    value: "verses",
+                    label: "Vers + kort forklaring",
+                    desc: "Viser vers og gir kort faktainformasjon",
+                  },
+                  {
+                    value: "grounded",
+                    label: "Forankret tolkning",
+                    desc: "Fri til å tolke, men forankret i teksten",
+                  },
+                  {
+                    value: "full",
+                    label: "Full utlegging",
+                    desc: "Utdypende forklaring og utlegging",
+                  },
+                ] as { value: ResponseMode; label: string; desc: string }[]
+              ).map(({ value, label, desc }) => {
+                const active = responseMode === value;
+                return (
+                  <label
+                    key={value}
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: "8px",
+                      cursor: "pointer",
+                      padding: "6px 8px",
+                      borderRadius: "3px",
+                      background: "transparent",
+                      border: `1px solid ${active ? "var(--gold)" : "transparent"}`,
+                      transition: "all 0.15s",
+                    }}
+                  >
+                    <input
+                      type="radio"
+                      name="smb-response-mode"
+                      value={value}
+                      checked={active}
+                      onChange={() => onResponseModeChange(value)}
+                      style={{
+                        accentColor: "var(--gold)",
+                        cursor: "pointer",
+                        marginTop: "2px",
+                        flexShrink: 0,
+                      }}
+                    />
+                    <div>
+                      <div
+                        style={{
+                          fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif",
+                          fontSize: "12px",
+                          fontWeight: active ? 600 : 400,
+                          color: active ? "var(--gold)" : "var(--ink)",
+                        }}
+                      >
+                        {label}
+                      </div>
+                      <div
+                        style={{
+                          fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif",
+                          fontSize: "10px",
+                          color: active ? "var(--gold)" : "var(--muted)",
+                          opacity: active ? 0.7 : 1,
+                          marginTop: "1px",
+                        }}
+                      >
+                        {desc}
+                      </div>
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -824,6 +950,7 @@ function SettingsPopover({
 function ChurchYearPanel({ day }: { day: ChurchYearDay }) {
   return (
     <div
+      className="church-year-panel"
       style={{
         borderTop: "1px solid var(--rule-mid)",
         background: "var(--surface)",
@@ -843,7 +970,7 @@ function ChurchYearPanel({ day }: { day: ChurchYearDay }) {
           fontStyle: "italic",
         }}
       >
-        Tekstrekke {day.tekstrekke} · {day.dato.split("-").reverse().join(".")}
+        Tekstrekke {day.tekstrekke} · {day.dato?.split("-").reverse().join(".")}
       </span>
     </div>
   );
@@ -854,14 +981,18 @@ function ChurchYearPanel({ day }: { day: ChurchYearDay }) {
 function ForossPanel({
   posts,
   podcasts,
+  forceExpanded = false,
 }: {
   posts: ForossPost[];
   podcasts: ForossPodcast[];
+  forceExpanded?: boolean;
 }) {
   const [collapsed, setCollapsed] = useState(true);
   const total = posts.length + podcasts.length;
 
   if (total === 0) return null;
+
+  const isOpen = forceExpanded || !collapsed;
 
   return (
     <div
@@ -872,243 +1003,166 @@ function ForossPanel({
         flexShrink: 0,
       }}
     >
-      {/* Header */}
-      <div
-        onClick={() => setCollapsed((c) => !c)}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "8px 20px",
-          borderBottom: collapsed ? "none" : "1px solid var(--rule)",
-          cursor: "pointer",
-          userSelect: "none",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <SectionLabel>Les mer på foross.no · {total}</SectionLabel>
-          <FontAwesomeIcon
-            icon={collapsed ? faChevronUp : faChevronDown}
-            aria-hidden
-            style={{ fontSize: "9px", color: "var(--muted)" }}
-          />
-        </div>
-      </div>
-
-      {/* Cards — horizontal scroll strip */}
-      {!collapsed && (
+      {/* Header — hidden when forceExpanded */}
+      {!forceExpanded && (
         <div
+          onClick={() => setCollapsed((c) => !c)}
           style={{
             display: "flex",
-            gap: "10px",
-            overflowX: "auto",
-            padding: "10px 20px 14px",
-            scrollbarWidth: "none",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "8px 20px",
+            borderBottom: collapsed ? "none" : "1px solid var(--rule)",
+            cursor: "pointer",
+            userSelect: "none",
           }}
         >
-          {posts.map((post) => (
-            <a
-              key={`post-${post.slug.current}`}
-              href={`https://foross.no/innlegg/${post.slug.current}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ textDecoration: "none", flexShrink: 0 }}
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <SectionLabel>Les mer på foross.no · {total}</SectionLabel>
+            <FontAwesomeIcon
+              icon={collapsed ? faChevronUp : faChevronDown}
+              aria-hidden
+              style={{ fontSize: "9px", color: "var(--muted)" }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Cards — horizontal scroll strip */}
+      {isOpen && (
+        <div style={{ display: "flex", flexDirection: "column" }}>
+          {/* Title shown when inside mobile drawer */}
+          {forceExpanded && (
+            <div
+              style={{
+                padding: "8px 16px 4px",
+                borderTop: "1px solid var(--rule)",
+              }}
             >
-              <div
-                className="foross-card"
-                style={{
-                  width: "160px",
-                  height: "168px",
-                  border: "1px solid var(--rule-mid)",
-                  borderRadius: "3px",
-                  overflow: "hidden",
-                  background: "var(--surface2)",
-                  transition: "border-color 0.2s",
-                  display: "flex",
-                  flexDirection: "column",
-                }}
+              <SectionLabel>Ressurser fra foross.no · {total}</SectionLabel>
+            </div>
+          )}
+          <div
+            style={{
+              display: "flex",
+              gap: "10px",
+              overflowX: "auto",
+              padding: "10px 20px 14px",
+              scrollbarWidth: "none",
+            }}
+          >
+            {podcasts.map((podcast) => (
+              <PodcastCard
+                key={`podcast-${podcast._id}`}
+                podcast={podcast}
+                compact
+              />
+            ))}
+
+            {posts.map((post) => (
+              <a
+                key={`post-${post.slug.current}`}
+                href={`https://foross.no/innlegg/${post.slug.current}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ textDecoration: "none", flexShrink: 0 }}
               >
-                {post.mainImage?.asset?.url ? (
-                  <div
-                    style={{
-                      width: "100%",
-                      height: "72px",
-                      overflow: "hidden",
-                      flexShrink: 0,
-                    }}
-                  >
-                    <img
-                      src={`${post.mainImage.asset.url}?w=240&h=135&fit=crop&auto=format`}
-                      alt={post.title}
+                <div
+                  className="foross-card"
+                  style={{
+                    width: "160px",
+                    height: "168px",
+                    border: "1px solid var(--rule-mid)",
+                    borderRadius: "3px",
+                    overflow: "hidden",
+                    background: "var(--surface2)",
+                    transition: "border-color 0.2s",
+                    display: "flex",
+                    flexDirection: "column",
+                  }}
+                >
+                  {post.mainImage?.asset?.url ? (
+                    <div
                       style={{
                         width: "100%",
-                        height: "100%",
-                        objectFit: "cover",
-                        display: "block",
+                        height: "72px",
+                        overflow: "hidden",
+                        flexShrink: 0,
+                      }}
+                    >
+                      <img
+                        src={`${post.mainImage.asset.url}?w=240&h=135&fit=crop&auto=format`}
+                        alt={post.title}
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          objectFit: "cover",
+                          display: "block",
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    <div
+                      style={{
+                        width: "100%",
+                        height: "72px",
+                        background: "var(--surface)",
+                        flexShrink: 0,
                       }}
                     />
-                  </div>
-                ) : (
+                  )}
                   <div
                     style={{
-                      width: "100%",
-                      height: "72px",
-                      background: "var(--surface)",
-                      flexShrink: 0,
-                    }}
-                  />
-                )}
-                <div
-                  style={{
-                    padding: "7px 9px",
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "3px",
-                  }}
-                >
-                  {post.section && (
-                    <span
-                      style={{
-                        fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif",
-                        fontSize: "8px",
-                        fontWeight: 500,
-                        letterSpacing: "0.12em",
-                        textTransform: "uppercase",
-                        color: "var(--gold-dim)",
-                      }}
-                    >
-                      {post.section.title}
-                    </span>
-                  )}
-                  <span
-                    style={{
-                      fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif",
-                      fontSize: "11px",
-                      fontWeight: 500,
-                      color: "var(--ink)",
-                      lineHeight: 1.35,
-                      display: "-webkit-box",
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: "vertical",
-                      overflow: "hidden",
-                    }}
-                  >
-                    {post.title}
-                  </span>
-                  <span
-                    style={{
-                      fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif",
-                      fontSize: "9px",
-                      color: "var(--muted)",
-                      marginTop: "auto",
-                    }}
-                  >
-                    foross.no
-                  </span>
-                </div>
-              </div>
-            </a>
-          ))}
-
-          {podcasts.map((podcast) => (
-            <a
-              key={`podcast-${podcast._id}`}
-              href={`https://www.foross.no/podkast/${podcast.series?.slug?.current ?? "episode"}/${podcast._id}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ textDecoration: "none", flexShrink: 0 }}
-            >
-              <div
-                className="foross-card"
-                style={{
-                  width: "160px",
-                  height: "168px",
-                  border: "1px solid var(--rule-mid)",
-                  borderRadius: "3px",
-                  overflow: "hidden",
-                  background: "var(--surface2)",
-                  transition: "border-color 0.2s",
-                  display: "flex",
-                  flexDirection: "column",
-                }}
-              >
-                {/* Podcast placeholder header */}
-                <div
-                  style={{
-                    width: "100%",
-                    height: "72px",
-                    background: "var(--surface)",
-                    flexShrink: 0,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <FontAwesomeIcon
-                    icon={faHeadphones}
-                    aria-hidden
-                    style={{ fontSize: "22px", color: "var(--gold-dim)" }}
-                  />
-                </div>
-                <div
-                  style={{
-                    padding: "7px 9px",
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "3px",
-                  }}
-                >
-                  {podcast.section && (
-                    <span
-                      style={{
-                        fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif",
-                        fontSize: "8px",
-                        fontWeight: 500,
-                        letterSpacing: "0.12em",
-                        textTransform: "uppercase",
-                        color: "var(--gold-dim)",
-                      }}
-                    >
-                      {podcast.section.title}
-                    </span>
-                  )}
-                  <span
-                    style={{
-                      fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif",
-                      fontSize: "11px",
-                      fontWeight: 500,
-                      color: "var(--ink)",
-                      lineHeight: 1.35,
-                      display: "-webkit-box",
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: "vertical",
-                      overflow: "hidden",
-                    }}
-                  >
-                    {podcast.title}
-                  </span>
-                  <span
-                    style={{
-                      fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif",
-                      fontSize: "9px",
-                      color: "var(--muted)",
-                      marginTop: "auto",
+                      padding: "7px 9px",
                       display: "flex",
-                      alignItems: "center",
-                      gap: "4px",
+                      flexDirection: "column",
+                      gap: "3px",
                     }}
                   >
-                    <FontAwesomeIcon
-                      icon={faHeadphones}
-                      aria-hidden
-                      style={{ fontSize: "8px" }}
-                    />
-                    episode
-                  </span>
+                    {post.section && (
+                      <span
+                        style={{
+                          fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif",
+                          fontSize: "8px",
+                          fontWeight: 500,
+                          letterSpacing: "0.12em",
+                          textTransform: "uppercase",
+                          color: "var(--gold-dim)",
+                        }}
+                      >
+                        {post.section.title}
+                      </span>
+                    )}
+                    <span
+                      style={{
+                        fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif",
+                        fontSize: "11px",
+                        fontWeight: 500,
+                        color: "var(--ink)",
+                        lineHeight: 1.35,
+                        display: "-webkit-box",
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: "vertical",
+                        overflow: "hidden",
+                      }}
+                    >
+                      {post.title}
+                    </span>
+                    <span
+                      style={{
+                        fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif",
+                        fontSize: "9px",
+                        color: "var(--muted)",
+                        marginTop: "auto",
+                      }}
+                    >
+                      foross.no
+                    </span>
+                  </div>
                 </div>
-              </div>
-            </a>
-          ))}
+              </a>
+            ))}
+          </div>
         </div>
       )}
     </div>
@@ -1133,13 +1187,13 @@ function ForossRightSidebar({
     <div
       className="foross-sidebar"
       style={{
+        overflow: "hidden",
         width: collapsed ? "36px" : EXPANDED_WIDTH,
-        flexShrink: 0,
+        height: "100%",
         borderLeft: "1px solid var(--rule-mid)",
         background: "var(--surface)",
         display: "flex",
         flexDirection: "column",
-        overflow: "hidden",
         transition: "width 0.25s cubic-bezier(0.16,1,0.3,1)",
       }}
     >
@@ -1180,7 +1234,6 @@ function ForossRightSidebar({
           />
         </button>
       </div>
-
       {/* Cards */}
       {!collapsed && (
         <div
@@ -1195,6 +1248,9 @@ function ForossRightSidebar({
             scrollbarWidth: "none",
           }}
         >
+          {podcasts.map((podcast) => (
+            <PodcastCard key={`podcast-${podcast._id}`} podcast={podcast} />
+          ))}
           {posts.map((post) => (
             <a
               key={post.slug.current}
@@ -1296,103 +1352,6 @@ function ForossRightSidebar({
               </div>
             </a>
           ))}
-
-          {podcasts.map((podcast) => (
-            <a
-              key={`podcast-${podcast._id}`}
-              href={`https://www.foross.no/podkast/${podcast.series?.slug?.current ?? "episode"}/${podcast._id}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ textDecoration: "none" }}
-            >
-              <div
-                className="foross-card"
-                style={{
-                  border: "1px solid var(--rule-mid)",
-                  borderRadius: "3px",
-                  overflow: "hidden",
-                  background: "var(--surface2)",
-                  transition: "border-color 0.2s",
-                  display: "flex",
-                  flexDirection: "column",
-                }}
-              >
-                <div
-                  style={{
-                    width: "100%",
-                    height: "80px",
-                    background: "var(--surface)",
-                    flexShrink: 0,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <FontAwesomeIcon
-                    icon={faHeadphones}
-                    aria-hidden
-                    style={{ fontSize: "26px", color: "var(--gold-dim)" }}
-                  />
-                </div>
-                <div
-                  style={{
-                    padding: "8px 10px",
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "3px",
-                  }}
-                >
-                  {podcast.section && (
-                    <span
-                      style={{
-                        fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif",
-                        fontSize: "8px",
-                        fontWeight: 500,
-                        letterSpacing: "0.12em",
-                        textTransform: "uppercase",
-                        color: "var(--gold-dim)",
-                      }}
-                    >
-                      {podcast.section.title}
-                    </span>
-                  )}
-                  <span
-                    style={{
-                      fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif",
-                      fontSize: "12px",
-                      fontWeight: 500,
-                      color: "var(--ink)",
-                      lineHeight: 1.4,
-                      display: "-webkit-box",
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: "vertical",
-                      overflow: "hidden",
-                    }}
-                  >
-                    {podcast.title}
-                  </span>
-                  <span
-                    style={{
-                      fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif",
-                      fontSize: "9px",
-                      color: "var(--muted)",
-                      marginTop: "2px",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "4px",
-                    }}
-                  >
-                    <FontAwesomeIcon
-                      icon={faHeadphones}
-                      aria-hidden
-                      style={{ fontSize: "8px" }}
-                    />
-                    episode
-                  </span>
-                </div>
-              </div>
-            </a>
-          ))}
         </div>
       )}
     </div>
@@ -1405,10 +1364,23 @@ function churchYearRefToApiRef(ref: string | null): string | null {
   if (!ref) return null;
   const parsed = parseChurchYearRef(ref);
   if (!parsed) return null;
-  const { fullBookName, chapter, fromVerse, toVerse } = parsed;
-  if (toVerse === 999) return `${fullBookName} ${chapter}`;
-  if (fromVerse === toVerse) return `${fullBookName} ${chapter}:${fromVerse}`;
-  return `${fullBookName} ${chapter}:${fromVerse}-${toVerse}`;
+  const { fullBookName, chapter, verses } = parsed;
+  if (verses.length === 0) return `${fullBookName} ${chapter}`;
+  // Rebuild compact segment notation: consecutive ranges as "N-M", singles as "N"
+  const sorted = [...new Set(verses)].sort((a, b) => a - b);
+  const segments: string[] = [];
+  let start = sorted[0],
+    end = sorted[0];
+  for (let i = 1; i < sorted.length; i++) {
+    if (sorted[i] === end + 1) {
+      end = sorted[i];
+    } else {
+      segments.push(start === end ? `${start}` : `${start}-${end}`);
+      start = end = sorted[i];
+    }
+  }
+  segments.push(start === end ? `${start}` : `${start}-${end}`);
+  return `${fullBookName} ${chapter}:${segments.join(".")}`;
 }
 
 type ChurchYearRef = { label: string; originalRef: string; apiRef: string };
@@ -1758,9 +1730,11 @@ function VerseModal({
 function RefsPanel({
   refs,
   churchYearDay,
+  forceExpanded = false,
 }: {
   refs: string[];
   churchYearDay?: ChurchYearDay | null;
+  forceExpanded?: boolean;
 }) {
   const [collapsed, setCollapsed] = useState(true);
   const [copiedAll, setCopiedAll] = useState(false);
@@ -1791,11 +1765,15 @@ function RefsPanel({
   }, [allApiRefs.join("|")]);
 
   const copyAll = useCallback(() => {
-    const churchYearParts = churchYearRefs.map(({ label, originalRef, apiRef }) => {
-      const verses = verseTexts[apiRef];
-      const body = Array.isArray(verses) ? buildCopyText(originalRef, verses) : originalRef;
-      return `[${label}] ${body}`;
-    });
+    const churchYearParts = churchYearRefs.map(
+      ({ label, originalRef, apiRef }) => {
+        const verses = verseTexts[apiRef];
+        const body = Array.isArray(verses)
+          ? buildCopyText(originalRef, verses)
+          : originalRef;
+        return `[${label}] ${body}`;
+      },
+    );
     const regularParts = refs.map((ref) => {
       const verses = verseTexts[ref];
       return Array.isArray(verses) ? buildCopyText(ref, verses) : ref;
@@ -1812,74 +1790,78 @@ function RefsPanel({
 
   if (totalCount === 0) return null;
 
+  const isOpen = forceExpanded || !collapsed;
+
   return (
     <div
-      className="animate-slide-in"
+      className="refs-panel animate-slide-in"
       style={{
         borderTop: "1px solid var(--rule-mid)",
         background: "var(--surface)",
         flexShrink: 0,
       }}
     >
-      {/* Header — clicking anywhere toggles collapse */}
-      <div
-        onClick={() => setCollapsed((c) => !c)}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "8px 20px",
-          borderBottom: collapsed ? "none" : "1px solid var(--rule)",
-          cursor: "pointer",
-          userSelect: "none",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <SectionLabel>Referanser · {totalCount}</SectionLabel>
-          <FontAwesomeIcon
-            icon={collapsed ? faChevronUp : faChevronDown}
-            aria-hidden
-            style={{ fontSize: "9px", color: "var(--muted)" }}
-          />
+      {/* Header — hidden when forceExpanded */}
+      {!forceExpanded && (
+        <div
+          onClick={() => setCollapsed((c) => !c)}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "8px 20px",
+            borderBottom: collapsed ? "none" : "1px solid var(--rule)",
+            cursor: "pointer",
+            userSelect: "none",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <SectionLabel>Referanser · {totalCount}</SectionLabel>
+            <FontAwesomeIcon
+              icon={collapsed ? faChevronUp : faChevronDown}
+              aria-hidden
+              style={{ fontSize: "9px", color: "var(--muted)" }}
+            />
+          </div>
+          {!collapsed && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                copyAll();
+              }}
+              style={{
+                fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif",
+                fontSize: "10px",
+                fontWeight: 500,
+                letterSpacing: "0.1em",
+                textTransform: "uppercase",
+                color: copiedAll ? "var(--gold)" : "var(--muted)",
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: "5px",
+                transition: "color 0.2s",
+                padding: "2px 0",
+              }}
+            >
+              {copiedAll ? (
+                <>
+                  <CheckIcon /> Kopiert
+                </>
+              ) : (
+                <>
+                  <CopyIcon /> Kopier alle
+                </>
+              )}
+            </button>
+          )}
         </div>
-        {!collapsed && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              copyAll();
-            }}
-            style={{
-              fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif",
-              fontSize: "10px",
-              fontWeight: 500,
-              letterSpacing: "0.1em",
-              textTransform: "uppercase",
-              color: copiedAll ? "var(--gold)" : "var(--muted)",
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              gap: "5px",
-              transition: "color 0.2s",
-              padding: "2px 0",
-            }}
-          >
-            {copiedAll ? (
-              <>
-                <CheckIcon /> Kopiert
-              </>
-            ) : (
-              <>
-                <CopyIcon /> Kopier alle
-              </>
-            )}
-          </button>
-        )}
-      </div>
-
+      )}{" "}
+      {/* end !forceExpanded header */}
       {/* Chips grouped by book — hidden when collapsed */}
-      {!collapsed && (
+      {isOpen && (
         <div
           className="refs-chips"
           style={{
@@ -1904,19 +1886,41 @@ function RefsPanel({
                 gap: "5px",
               }}
             >
-              <span
+              {/* Header: day name + date + tekstrekke */}
+              <div
                 style={{
-                  fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif",
-                  fontSize: "9px",
-                  fontWeight: 500,
-                  letterSpacing: "0.12em",
-                  textTransform: "uppercase",
-                  color: "var(--gold-dim)",
+                  display: "flex",
+                  alignItems: "baseline",
+                  gap: "8px",
                   marginBottom: "2px",
                 }}
               >
-                Kirkeåret
-              </span>
+                <span
+                  style={{
+                    fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif",
+                    fontSize: "9px",
+                    fontWeight: 500,
+                    letterSpacing: "0.12em",
+                    textTransform: "uppercase",
+                    color: "var(--gold-dim)",
+                  }}
+                >
+                  {churchYearDay?.sunday_name ?? "Kirkeåret"}
+                </span>
+                {churchYearDay && (
+                  <span
+                    style={{
+                      fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif",
+                      fontSize: "9px",
+                      color: "var(--muted)",
+                      fontStyle: "italic",
+                    }}
+                  >
+                    Tekstrekke {churchYearDay.tekstrekke} ·{" "}
+                    {churchYearDay.dato?.split("-").reverse().join(".")}
+                  </span>
+                )}
+              </div>
               {churchYearRefs.map(({ label, originalRef, apiRef }) => {
                 const state = verseTexts[apiRef];
                 const isLoading = state === "loading";
@@ -2144,7 +2148,6 @@ function RefsPanel({
           })()}
         </div>
       )}
-
       {/* Verse modal */}
       {modalRef && (
         <VerseModal
@@ -2179,10 +2182,113 @@ function CheckIcon({ size = 12 }: { size?: number }) {
   );
 }
 
-function ContextInfoButton() {
+function ChurchYearInfoButton() {
   const [visible, setVisible] = useState(false);
+  const ref = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    if (!visible) return;
+    function onOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node))
+        setVisible(false);
+    }
+    document.addEventListener("mousedown", onOutside);
+    return () => document.removeEventListener("mousedown", onOutside);
+  }, [visible]);
+
   return (
     <span
+      ref={ref}
+      style={{
+        position: "relative",
+        display: "inline-flex",
+        alignItems: "center",
+      }}
+    >
+      <button
+        type="button"
+        onClick={() => setVisible((v) => !v)}
+        style={{
+          background: "none",
+          border: "none",
+          cursor: "pointer",
+          padding: "0",
+          display: "flex",
+          alignItems: "center",
+          color: "var(--muted)",
+          lineHeight: 1,
+        }}
+        title="Om kirkeår-kontekst"
+      >
+        <svg
+          width="11"
+          height="11"
+          viewBox="0 0 16 16"
+          fill="currentColor"
+          aria-hidden
+        >
+          <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 3a1 1 0 1 1 0 2 1 1 0 0 1 0-2zm-.75 3.5h1.5v4.5h-1.5V7.5z" />
+        </svg>
+      </button>
+      {visible && (
+        <span
+          style={{
+            position: "absolute",
+            top: "calc(100% + 8px)",
+            right: 0,
+            width: "240px",
+            background: "var(--surface)",
+            border: "1px solid var(--rule-mid)",
+            borderRadius: "4px",
+            padding: "10px 12px",
+            boxShadow: "0 4px 20px rgba(0,0,0,0.28)",
+            zIndex: 200,
+            fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif",
+            fontSize: "11px",
+            fontWeight: 400,
+            lineHeight: 1.6,
+            color: "var(--ink-soft)",
+          }}
+        >
+          Når dette er på, henter AI-en automatisk{" "}
+          <strong style={{ color: "var(--ink)", fontWeight: 600 }}>
+            søndagens tekster
+          </strong>{" "}
+          fra kirkeåret og bruker dem som ekstra kontekst. Nyttig for
+          prekenforberedelse og gudstjenesteplanlegging.
+          <br />
+          <br />
+          <em style={{ color: "var(--muted)" }}>
+            Merk: kirkeår-kontekst halverer samtalens kontekstvindu fra 15 til 8
+            meldinger.
+          </em>
+        </span>
+      )}
+    </span>
+  );
+}
+
+function ContextInfoButton({
+  churchYearEnabled,
+}: {
+  churchYearEnabled: boolean;
+}) {
+  const [visible, setVisible] = useState(false);
+  const ref = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    if (!visible) return;
+    function onOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node))
+        setVisible(false);
+    }
+    document.addEventListener("mousedown", onOutside);
+    return () => document.removeEventListener("mousedown", onOutside);
+  }, [visible]);
+
+  return (
+    <span
+      ref={ref}
       style={{
         position: "relative",
         display: "inline-flex",
@@ -2225,22 +2331,31 @@ function ContextInfoButton() {
             border: "1px solid var(--rule-mid)",
             borderRadius: "4px",
             padding: "10px 12px",
-            boxShadow: "0 4px 20px rgba(0,0,0,0.18)",
+            boxShadow: "0 4px 20px rgba(0,0,0,0.28)",
             zIndex: 50,
             fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif",
             fontSize: "11px",
             fontWeight: 400,
             lineHeight: 1.6,
             color: "var(--ink-soft)",
-            pointerEvents: "none",
           }}
         >
           De siste{" "}
           <strong style={{ color: "var(--ink)", fontWeight: 600 }}>
-            15 meldingene
+            {churchYearEnabled ? 8 : 15} meldingene
           </strong>{" "}
           i samtalen sendes med til AI-en hver gang du spør. Eldre meldinger
           faller utenfor konteksten og huskes ikke.
+          {churchYearEnabled && (
+            <>
+              {" "}
+              Konteksten er halvert fordi{" "}
+              <strong style={{ color: "var(--ink)", fontWeight: 600 }}>
+                kirkeåret
+              </strong>{" "}
+              er aktivert.
+            </>
+          )}
         </span>
       )}
     </span>
@@ -2277,16 +2392,57 @@ function lsSaveSessionMeta(session: Session) {
   localStorage.setItem(LS_INDEX, JSON.stringify([session, ...rest]));
 }
 
-function lsLoadMessages(id: string): Message[] {
+type SessionData = {
+  messages: Message[];
+  forossPosts: ForossPost[];
+  forossPodcasts: ForossPodcast[];
+  churchYearDay: ChurchYearDay | null;
+};
+
+function lsLoadSessionData(id: string): SessionData {
   try {
-    return JSON.parse(localStorage.getItem(lsKey(id)) ?? "[]");
+    const raw = JSON.parse(localStorage.getItem(lsKey(id)) ?? "[]");
+    // Backward compat: old format was just Message[]
+    if (Array.isArray(raw)) {
+      return {
+        messages: raw,
+        forossPosts: [],
+        forossPodcasts: [],
+        churchYearDay: null,
+      };
+    }
+    return {
+      messages: raw.messages ?? [],
+      forossPosts: raw.forossPosts ?? [],
+      forossPodcasts: raw.forossPodcasts ?? [],
+      churchYearDay: raw.churchYearDay ?? null,
+    };
   } catch {
-    return [];
+    return {
+      messages: [],
+      forossPosts: [],
+      forossPodcasts: [],
+      churchYearDay: null,
+    };
   }
 }
 
-function lsSaveMessages(id: string, msgs: Message[]) {
-  localStorage.setItem(lsKey(id), JSON.stringify(msgs));
+function lsSaveSessionData(
+  id: string,
+  msgs: Message[],
+  forossPosts: ForossPost[],
+  forossPodcasts: ForossPodcast[],
+  churchYearDay: ChurchYearDay | null,
+) {
+  localStorage.setItem(
+    lsKey(id),
+    JSON.stringify({
+      messages: msgs,
+      forossPosts,
+      forossPodcasts,
+      churchYearDay,
+    }),
+  );
 }
 
 function lsDeleteSession(id: string) {
@@ -2333,6 +2489,50 @@ function lsSaveTekstrekke(t: number | null) {
   try {
     if (t === null) localStorage.removeItem(LS_TEKSTREKKE);
     else localStorage.setItem(LS_TEKSTREKKE, String(t));
+  } catch {
+    /* ignore */
+  }
+}
+
+// ── localStorage church year toggle ───────────────────────────────────────────
+
+const LS_CHURCH_YEAR = "smb_churchYearEnabled";
+
+function lsLoadChurchYearEnabled(): boolean {
+  try {
+    return localStorage.getItem(LS_CHURCH_YEAR) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function lsSaveChurchYearEnabled(v: boolean) {
+  try {
+    localStorage.setItem(LS_CHURCH_YEAR, String(v));
+  } catch {
+    /* ignore */
+  }
+}
+
+// ── localStorage response mode ────────────────────────────────────────────────
+
+type ResponseMode = "verses" | "grounded" | "full";
+
+const LS_RESPONSE_MODE = "smb_responseMode";
+
+function lsLoadResponseMode(): ResponseMode {
+  try {
+    const v = localStorage.getItem(LS_RESPONSE_MODE);
+    if (v === "verses" || v === "grounded" || v === "full") return v;
+    return "grounded";
+  } catch {
+    return "grounded";
+  }
+}
+
+function lsSaveResponseMode(m: ResponseMode) {
+  try {
+    localStorage.setItem(LS_RESPONSE_MODE, m);
   } catch {
     /* ignore */
   }
@@ -2386,6 +2586,7 @@ function Sidebar({
   onSelect,
   onNew,
   onDelete,
+  containerRef,
 }: {
   open: boolean;
   sessions: Session[];
@@ -2393,9 +2594,12 @@ function Sidebar({
   onSelect: (id: string) => void;
   onNew: () => void;
   onDelete: (id: string) => void;
+  containerRef?: React.RefObject<HTMLDivElement | null>;
 }) {
   return (
     <div
+      ref={containerRef}
+      className="smb-sidebar"
       style={{
         width: open ? "256px" : "0",
         flexShrink: 0,
@@ -2546,6 +2750,104 @@ function Sidebar({
   );
 }
 
+// ── Mobile context drawer ─────────────────────────────────────────────────────
+
+function MobileContextDrawer({
+  churchYearDay,
+  churchYearEnabled,
+  forossPosts,
+  forossPodcasts,
+  refs,
+}: {
+  churchYearDay: ChurchYearDay | null;
+  churchYearEnabled: boolean;
+  forossPosts: ForossPost[];
+  forossPodcasts: ForossPodcast[];
+  refs: string[];
+}) {
+  const [open, setOpen] = useState(false);
+
+  const forossTotal = forossPosts.length + forossPodcasts.length;
+  const churchYearRefs = churchYearDay ? getChurchYearRefs(churchYearDay) : [];
+  const refsTotal = refs.length + churchYearRefs.length;
+
+  const hasContent = Boolean(
+    (churchYearEnabled && churchYearDay) || refsTotal > 0 || forossTotal > 0,
+  );
+  if (!hasContent) return null;
+
+  const badge = [
+    churchYearEnabled && churchYearDay ? churchYearDay.sunday_name : null,
+    refsTotal > 0 ? `${refsTotal} referanser` : null,
+    forossTotal > 0 ? `${forossTotal} artikler` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  return (
+    <div
+      className="mobile-context-drawer"
+      style={{
+        display: "none",
+        flexDirection: "column",
+        borderTop: "1px solid var(--rule-mid)",
+        background: "var(--surface)",
+        flexShrink: 0,
+      }}
+    >
+      {/* Single unified toggle header */}
+      <div
+        onClick={() => setOpen((o) => !o)}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "9px 16px",
+          cursor: "pointer",
+          userSelect: "none",
+        }}
+      >
+        <SectionLabel>{badge}</SectionLabel>
+        <FontAwesomeIcon
+          icon={open ? faChevronDown : faChevronUp}
+          aria-hidden
+          style={{ fontSize: "9px", color: "var(--muted)" }}
+        />
+      </div>
+
+      {/* Expanded content */}
+      {open && (
+        <div
+          style={{
+            maxHeight: "52vh",
+            overflowY: "auto",
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          {/* Refs (includes church year section with day name + date + tekstrekke) */}
+          {refsTotal > 0 && (
+            <RefsPanel
+              refs={refs}
+              churchYearDay={churchYearDay}
+              forceExpanded
+            />
+          )}
+
+          {/* Foross */}
+          {forossTotal > 0 && (
+            <ForossPanel
+              posts={forossPosts}
+              podcasts={forossPodcasts}
+              forceExpanded
+            />
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function Home() {
@@ -2561,12 +2863,32 @@ export default function Home() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [series, setSeries] = useState<string>("dnk");
-  const [tekstrekkeOverride, setTekstrekkeOverride] = useState<number | null>(null);
+  const [tekstrekkeOverride, setTekstrekkeOverride] = useState<number | null>(
+    null,
+  );
+  const [churchYearEnabled, setChurchYearEnabled] = useState<boolean>(false);
+  const [responseMode, setResponseMode] = useState<ResponseMode>("grounded");
   const [churchYearDay, setChurchYearDay] = useState<ChurchYearDay | null>(
     null,
   );
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const sidebarRef = useRef<HTMLDivElement>(null);
+
+  // Close sidebar on outside click (mobile overlay mode)
+  useEffect(() => {
+    if (!sidebarOpen) return;
+    function onOutside(e: MouseEvent) {
+      if (
+        sidebarRef.current &&
+        !sidebarRef.current.contains(e.target as Node)
+      ) {
+        setSidebarOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onOutside);
+    return () => document.removeEventListener("mousedown", onOutside);
+  }, [sidebarOpen]);
 
   function handleInlineRefClick(ref: string) {
     setInlineModalRef(ref);
@@ -2599,12 +2921,20 @@ export default function Home() {
     setSessions(lsLoadSessions());
     setSeries(lsLoadSeries());
     setTekstrekkeOverride(lsLoadTekstrekke());
+    setChurchYearEnabled(lsLoadChurchYearEnabled());
+    setResponseMode(lsLoadResponseMode());
   }, []);
 
-  // Auto-save whenever messages change
+  // Auto-save whenever messages or foross/church data change
   useEffect(() => {
     if (!currentSessionId || messages.length === 0) return;
-    lsSaveMessages(currentSessionId, messages);
+    lsSaveSessionData(
+      currentSessionId,
+      messages,
+      forossPosts,
+      forossPodcasts,
+      churchYearDay,
+    );
     const firstUser = messages.find((m) => m.role === "user");
     if (firstUser) {
       const title =
@@ -2618,20 +2948,26 @@ export default function Home() {
       });
       setSessions(lsLoadSessions());
     }
-  }, [messages, currentSessionId]);
+  }, [messages, currentSessionId, forossPosts, forossPodcasts, churchYearDay]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
   function openSession(id: string) {
-    setMessages(lsLoadMessages(id));
+    const data = lsLoadSessionData(id);
+    setMessages(data.messages);
+    setForossPosts(data.forossPosts);
+    setForossPodcasts(data.forossPodcasts);
+    if (data.churchYearDay) setChurchYearDay(data.churchYearDay);
     setCurrentSessionId(id);
     setInput("");
   }
 
   function startNew() {
     setMessages([]);
+    setForossPosts([]);
+    setForossPodcasts([]);
     setCurrentSessionId(null);
     setInput("");
   }
@@ -2666,7 +3002,9 @@ export default function Home() {
 
     // Skip duplicate guard when explicit base messages are supplied (e.g. retry)
     if (!baseMessages) {
-      const lastUserMsg = [...messages].reverse().find((m) => m.role === "user");
+      const lastUserMsg = [...messages]
+        .reverse()
+        .find((m) => m.role === "user");
       if (lastUserMsg && lastUserMsg.content.trim() === content.trim()) return;
     }
 
@@ -2689,7 +3027,14 @@ export default function Home() {
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: newMessages, series, bypassCache, tekstrekkeOverride }),
+        body: JSON.stringify({
+          messages: newMessages,
+          series,
+          bypassCache,
+          tekstrekkeOverride,
+          churchYearEnabled,
+          responseMode,
+        }),
       });
 
       if (!response.ok || !response.body) throw new Error("Request failed");
@@ -2801,6 +3146,7 @@ export default function Home() {
         open={sidebarOpen}
         sessions={sessions}
         currentId={currentSessionId}
+        containerRef={sidebarRef}
         onSelect={(id) => {
           openSession(id);
           setSidebarOpen(false);
@@ -2863,7 +3209,6 @@ export default function Home() {
               >
                 <MenuIcon />
               </button>
-              <Ornament size={16} />
               <div>
                 <div
                   style={{
@@ -2873,16 +3218,105 @@ export default function Home() {
                     letterSpacing: "-0.01em",
                     color: "var(--ink)",
                     lineHeight: 1.1,
+                    marginBottom: "0px !important",
                   }}
                 >
                   Skriv med Bibelen
                 </div>
-                <div>
+                <div className="header-subtitle">
                   <SectionLabel>Bibelhjelp · gpt-5.4-mini</SectionLabel>
                 </div>
               </div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+              {/* Church year toggle — pill to the left of the cog */}
+              <div
+                className="kirkeaar-section"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  paddingRight: "16px",
+                  borderRight: "1px solid var(--rule-mid)",
+                }}
+              >
+                <label
+                  title={
+                    churchYearEnabled
+                      ? "Kirkeår-kontekst på"
+                      : "Kirkeår-kontekst av"
+                  }
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    cursor: "pointer",
+                  }}
+                >
+                  <div
+                    style={{
+                      position: "relative",
+                      width: "28px",
+                      height: "16px",
+                      borderRadius: "8px",
+                      background: churchYearEnabled
+                        ? "var(--gold)"
+                        : "var(--surface2)",
+                      border: `1px solid ${churchYearEnabled ? "var(--gold)" : "var(--rule-mid)"}`,
+                      flexShrink: 0,
+                      transition: "background 0.2s, border-color 0.2s",
+                    }}
+                  >
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: "2px",
+                        left: churchYearEnabled ? "13px" : "2px",
+                        width: "10px",
+                        height: "10px",
+                        borderRadius: "50%",
+                        background: churchYearEnabled
+                          ? "var(--bg)"
+                          : "var(--muted)",
+                        transition: "left 0.15s",
+                        pointerEvents: "none",
+                      }}
+                    />
+                    <input
+                      type="checkbox"
+                      checked={churchYearEnabled}
+                      onChange={(e) => {
+                        setChurchYearEnabled(e.target.checked);
+                        lsSaveChurchYearEnabled(e.target.checked);
+                      }}
+                      style={{
+                        position: "absolute",
+                        inset: 0,
+                        opacity: 0,
+                        cursor: "pointer",
+                        margin: 0,
+                        width: "100%",
+                        height: "100%",
+                      }}
+                    />
+                  </div>
+                  <span
+                    className="kirkeaar-label"
+                    style={{
+                      fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif",
+                      fontSize: "9px",
+                      fontWeight: 500,
+                      letterSpacing: "0.1em",
+                      textTransform: "uppercase",
+                      color: churchYearEnabled ? "var(--gold)" : "var(--muted)",
+                      transition: "color 0.2s",
+                    }}
+                  >
+                    Kirkeår
+                  </span>
+                </label>
+                <ChurchYearInfoButton />
+              </div>
               <SettingsPopover
                 series={series}
                 onSeriesChange={(s) => {
@@ -2893,6 +3327,12 @@ export default function Home() {
                 onTekstrekkeChange={(t) => {
                   setTekstrekkeOverride(t);
                   lsSaveTekstrekke(t);
+                }}
+                churchYearEnabled={churchYearEnabled}
+                responseMode={responseMode}
+                onResponseModeChange={(m) => {
+                  setResponseMode(m);
+                  lsSaveResponseMode(m);
                 }}
               />
               <div
@@ -2911,6 +3351,8 @@ export default function Home() {
               >
                 <a
                   href="https://norsk-bibel.no"
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="flex gap-1 items-center justify-center flex-row"
                   style={{ color: "inherit", textDecoration: "none" }}
                 >
@@ -2933,7 +3375,10 @@ export default function Home() {
                 justifyContent: "center",
               }}
             >
-              <EmptyState onPrompt={(p) => sendMessage(p)} />
+              <EmptyState
+                onPrompt={(p) => sendMessage(p)}
+                churchYearEnabled={churchYearEnabled}
+              />
             </div>
           ) : (
             <div
@@ -2973,12 +3418,21 @@ export default function Home() {
           )}
         </main>
 
-        {/* ── Foross posts panel (mobile only) ────────────────────────── */}
-        {churchYearDay && <ChurchYearPanel day={churchYearDay} />}
+        {/* ── Desktop bottom panels ────────────────────────────────────── */}
+        {churchYearEnabled && churchYearDay && (
+          <ChurchYearPanel day={churchYearDay} />
+        )}
         <ForossPanel posts={forossPosts} podcasts={forossPodcasts} />
-
-        {/* ── Bible references panel ──────────────────────────────────── */}
         <RefsPanel refs={uniqueRefs} churchYearDay={churchYearDay} />
+
+        {/* ── Mobile unified context drawer (replaces above panels) ────── */}
+        <MobileContextDrawer
+          churchYearDay={churchYearDay}
+          churchYearEnabled={churchYearEnabled}
+          forossPosts={forossPosts}
+          forossPodcasts={forossPodcasts}
+          refs={uniqueRefs}
+        />
 
         {/* ── Inline verse modal (from clicking refs in response text) ── */}
         {inlineModalRef && (
@@ -3021,12 +3475,15 @@ export default function Home() {
                     letterSpacing: "0.12em",
                     textTransform: "uppercase",
                     color:
-                      messages.length >= 12 ? "var(--gold)" : "var(--muted)",
+                      messages.length >= (churchYearEnabled ? 6 : 12)
+                        ? "var(--gold)"
+                        : "var(--muted)",
                   }}
                 >
-                  {messages.length}/15 meldinger i kontekst
+                  {messages.length}/{churchYearEnabled ? 8 : 15} meldinger i
+                  kontekst
                 </span>
-                <ContextInfoButton />
+                <ContextInfoButton churchYearEnabled={churchYearEnabled} />
               </div>
             )}
             <div
@@ -3116,12 +3573,40 @@ export default function Home() {
                 Enter for å sende · Shift+Enter for ny linje
               </SectionLabel>
             </div>
+            <div style={{ textAlign: "center", marginTop: "6px" }}>
+              <span
+                style={{
+                  fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif",
+                  fontSize: "9px",
+                  color: "var(--muted)",
+                  letterSpacing: "0.04em",
+                }}
+              >
+                Laget av{" "}
+                <a
+                  href="https://marius-portifolio.vercel.app/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    color: "var(--muted)",
+                    textDecoration: "underline",
+                    textUnderlineOffset: "2px",
+                  }}
+                >
+                  Marius Sørenes
+                </a>
+              </span>
+            </div>
           </form>
         </footer>
       </div>
 
       {/* ── Foross right sidebar (desktop only) ─────────────────────────── */}
-      <ForossRightSidebar posts={forossPosts} podcasts={forossPodcasts} />
+      <ForossRightSidebar
+        key={"sidebar-" + forossPodcasts.length + "-" + forossPosts.length}
+        posts={forossPosts}
+        podcasts={forossPodcasts}
+      />
 
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
@@ -3135,18 +3620,39 @@ export default function Home() {
         .msg-copy-btn:hover { color: var(--ink-soft) !important; }
         .ref-chip-icon { max-width: 0; opacity: 0; }
         .ref-chip:hover .ref-chip-icon, .ref-chip-icon--active { max-width: 20px; opacity: 1; }
+        /* Desktop: foross bottom panel hidden (uses sidebar instead) */
         .foross-bottom-panel { display: none !important; }
+        /* Mobile: sidebar becomes overlay */
         @media (max-width: 640px) {
+          .smb-sidebar {
+            position: fixed !important;
+            z-index: 200 !important;
+            top: 0 !important;
+            left: 0 !important;
+            height: 100dvh !important;
+          }
           .header-bar { padding: 10px 14px !important; }
+          .header-subtitle { display: none !important; }
+          .kirkeaar-label { display: none !important; }
+          .kirkeaar-section { padding-right: 8px !important; border-right: none !important; }
           .nb-badge { display: none !important; }
           .msgs-wrap { padding: 20px 14px !important; gap: 24px !important; }
           .user-bubble { max-width: min(88%, 600px) !important; }
           .assistant-bubble { max-width: 100% !important; }
           .footer-bar { padding: 12px 14px 14px !important; }
           .input-hint { display: none !important; }
-          .refs-chips { overflow-x: hidden !important; overflow-y: auto !important; max-height: 200px !important; }
           .foross-sidebar { display: none !important; }
-          .foross-bottom-panel { display: block !important; }
+          /* Hide individual bottom panels on mobile */
+          .church-year-panel { display: none !important; }
+          .refs-panel { display: none !important; }
+          /* foross-bottom-panel stays hidden on mobile too (inside drawer only) */
+          /* Show mobile unified drawer */
+          .mobile-context-drawer { display: flex !important; }
+          /* Inside drawer: show foross and refs panels */
+          .mobile-context-drawer .foross-bottom-panel { display: block !important; border-top: none !important; }
+          .mobile-context-drawer .refs-panel { display: block !important; border-top: 1px solid var(--rule) !important; }
+          /* Inside drawer: refs chips can be taller */
+          .mobile-context-drawer .refs-chips { max-height: none !important; }
         }
       `}</style>
     </div>

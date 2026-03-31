@@ -21,7 +21,7 @@ export const ABBREV_TO_FULLNAME: Record<string, string> = {
   "Est": "Ester",
   // Wisdom / Poetry
   "Job": "Job",
-  "Sal": "Salmene",
+  "Sal": "Salme",
   "Ordsp": "Ordspråkene",
   "Fork": "Forkynneren",
   "Høys": "Høysangen",
@@ -56,7 +56,7 @@ export const ABBREV_TO_FULLNAME: Record<string, string> = {
   "2 Kor": "2. Korinter",
   "Gal": "Galaterne",
   "Ef": "Efeserne",
-  "Fil": "Filipperne",
+  "Fil": "Filiperne",
   "Kol": "Kolosserne",
   "1 Tess": "1. Tessaloniker",
   "2 Tess": "2. Tessaloniker",
@@ -84,20 +84,30 @@ export const ABBREV_TO_FULLNAME: Record<string, string> = {
 export function parseChurchYearRef(ref: string): {
   fullBookName: string;
   chapter: number;
-  fromVerse: number;
-  toVerse: number;
+  /** Specific verse numbers to fetch. Empty means fetch the whole chapter. */
+  verses: number[];
 } | null {
-  // Match: "<abbrev> <chapter>" or "<abbrev> <chapter>:<verse>" or "<abbrev> <chapter>:<v1>-<v2>"
-  // Also tolerates trailing letters like "22a"
-  const m = ref
-    .trim()
-    .match(/^(.*?)\s+(\d+)(?::(\d+[a-z]?)(?:\s*[-–]\s*(\d+)[a-z]?)?)?$/);
+  // Match: "<abbrev> <chapter>" or "<abbrev> <chapter>:<verse-spec>"
+  // verse-spec may be dot-separated segments like "21-22.25.31"
+  const m = ref.trim().match(/^(.*?)\s+(\d+)(?::(.+))?$/);
   if (!m) return null;
   const abbrev = m[1].trim();
   const fullBookName = ABBREV_TO_FULLNAME[abbrev];
   if (!fullBookName) return null;
   const chapter = parseInt(m[2], 10);
-  const fromVerse = m[3] ? parseInt(m[3], 10) : 1;
-  const toVerse = m[4] ? parseInt(m[4], 10) : m[3] ? fromVerse : 999;
-  return { fullBookName, chapter, fromVerse, toVerse };
+
+  if (!m[3]) return { fullBookName, chapter, verses: [] };
+
+  // Parse all dot-separated segments, each of which may be "N" or "N-M" (with optional trailing letter)
+  const verses: number[] = [];
+  for (const seg of m[3].split(".")) {
+    const r = seg.trim().match(/^(\d+)[a-z]?(?:\s*[-–]\s*(\d+)[a-z]?)?$/);
+    if (!r) continue;
+    const from = parseInt(r[1], 10);
+    const to = r[2] ? parseInt(r[2], 10) : from;
+    for (let v = from; v <= to; v++) verses.push(v);
+  }
+
+  if (verses.length === 0) return null;
+  return { fullBookName, chapter, verses };
 }
