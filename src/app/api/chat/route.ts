@@ -546,7 +546,7 @@ async function lookupByText(
       ? ([
           null,
           String(NO_ORDINAL_WORDS[wordOrdinalMatch[1]]),
-        ] as RegExpMatchArray)
+        ] as unknown as RegExpMatchArray)
       : null);
   if (ordinalMatch) {
     for (const word of words) {
