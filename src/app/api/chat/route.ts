@@ -418,7 +418,7 @@ function addDays(dateStr: string, n: number): string {
  * Anything that appears in almost every sunday_name or is a common question word.
  */
 const LOOKUP_GENERIC = new Set([
-  "tekstene", "tekstrekke", "søndagen", "søndagens",
+  "tekstene", "tekstrekke", "søndagen", "søndagens", "søndag",
   "kirkeåret", "gudstjeneste", "evangelium", "epistel",
   "fortelle", "beskriv", "tekster", "preken", "preike", "preke",
 ]);
@@ -445,17 +445,17 @@ async function queryByNamePattern(
     .maybeSingle();
   if (upcoming) return upcoming as ChurchYearDay;
 
-  const { data: past } = await supabase
+  // No upcoming match in this tekstrekke — find the nearest future occurrence across any tekstrekke
+  const { data: anyTekstrekke } = await supabase
     .from("church_year_day")
     .select("*")
     .eq("series", series)
-    .eq("tekstrekke", tekstrekke)
     .ilike("sunday_name", pattern)
-    .lt("dato", today)
-    .order("dato", { ascending: false })
+    .gte("dato", today)
+    .order("dato", { ascending: true })
     .limit(1)
     .maybeSingle();
-  return past ? (past as ChurchYearDay) : null;
+  return anyTekstrekke ? (anyTekstrekke as ChurchYearDay) : null;
 }
 
 /**
@@ -474,13 +474,20 @@ async function lookupByText(
   const lower = message.toLowerCase();
 
   const words = (lower.match(/[a-zA-ZæøåÆØÅ]+/g) ?? [])
-    .filter((w) => w.length > 6 && !LOOKUP_GENERIC.has(w))
+    .filter((w) => w.length >= 5 && !LOOKUP_GENERIC.has(w))
     .sort((a, b) => b.length - a.length); // longest = most specific first
 
   if (words.length === 0) return null;
 
   // Ordinal-anchored search: "3. søndag i treenighetstiden" → "3. %treenighetstiden%"
-  const ordinalMatch = lower.match(/\b(\d+)\.\s/);
+  // Also handles Norwegian ordinal words: "andre søndag i adventstiden" → "2. %adventstiden%"
+  const NO_ORDINAL_WORDS: Record<string, number> = {
+    første: 1, andre: 2, tredje: 3, fjerde: 4, femte: 5,
+    sjette: 6, syvende: 7, sjuende: 7, åttende: 8, niende: 9, tiende: 10,
+  };
+  const wordOrdinalMatch = lower.match(new RegExp(`\\b(${Object.keys(NO_ORDINAL_WORDS).join("|")})\\b`));
+  const numericOrdinal = lower.match(/\b(\d+)\.\s/);
+  const ordinalMatch = numericOrdinal ?? (wordOrdinalMatch ? [null, String(NO_ORDINAL_WORDS[wordOrdinalMatch[1]])] as RegExpMatchArray : null);
   if (ordinalMatch) {
     for (const word of words) {
       const result = await queryByNamePattern(
@@ -701,7 +708,7 @@ export async function POST(req: Request): Promise<Response> {
           .order("chapternumber")
           .order("versenumber"),
         fetchForossPosts(flatIds),
-        churchYearDay ? fetchForossPostsByChurchDay(churchYearDay.name) : Promise.resolve<ForossPost[]>([]),
+        churchYearDay ? fetchForossPostsByChurchDay(churchYearDay.id) : Promise.resolve<ForossPost[]>([]),
         fetchForossPodcasts(flatIds, lastUserMessage.content),
       ]);
 

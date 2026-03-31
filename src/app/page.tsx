@@ -843,7 +843,7 @@ function ChurchYearPanel({ day }: { day: ChurchYearDay }) {
           fontStyle: "italic",
         }}
       >
-        Tekstrekke {day.tekstrekke}
+        Tekstrekke {day.tekstrekke} · {day.dato.split("-").reverse().join(".")}
       </span>
     </div>
   );
