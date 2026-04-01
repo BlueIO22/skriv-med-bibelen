@@ -3308,7 +3308,7 @@ export default function Home() {
                       fontWeight: 500,
                       letterSpacing: "0.1em",
                       textTransform: "uppercase",
-                      color: churchYearEnabled ? "var(--gold)" : "var(--muted)",
+                      color: churchYearEnabled ? "white" : "white",
                       transition: "color 0.2s",
                     }}
                   >
