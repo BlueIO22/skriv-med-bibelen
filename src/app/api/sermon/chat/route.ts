@@ -247,7 +247,7 @@ export async function POST(req: Request): Promise<Response> {
   const systemPrompt = buildSystemPrompt(step, context, relatedVerses);
 
   const stream = await openai.chat.completions.create({
-    model: "gpt-4o",
+    model: "gpt-5.4-mini",
     stream: true,
     messages: [{ role: "system", content: systemPrompt }, ...messages],
     max_tokens: step === "generer-utkast" ? 4000 : 2000,
