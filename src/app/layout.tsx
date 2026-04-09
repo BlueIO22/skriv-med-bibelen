@@ -1,11 +1,19 @@
 import type { Metadata } from "next";
-import { Ubuntu } from "next/font/google";
+import { Playfair_Display, Ubuntu } from "next/font/google";
 import "./globals.css";
 
 const ubuntu = Ubuntu({
   variable: "--font-ubuntu",
   subsets: ["latin"],
   weight: ["300", "400", "500", "700"],
+  style: ["normal", "italic"],
+  display: "swap",
+});
+
+const playfair = Playfair_Display({
+  variable: "--font-playfair",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800"],
   style: ["normal", "italic"],
   display: "swap",
 });
@@ -21,7 +29,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="no" className={`${ubuntu.variable} h-full`}>
+    <html lang="no" className={`${ubuntu.variable} ${playfair.variable} h-full`}>
       <body className="h-full">{children}</body>
     </html>
   );
