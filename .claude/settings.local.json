@@ -18,7 +18,21 @@
       "Bash(node -e \"require\\(''dotenv''\\)\")",
       "Bash(node:*)",
       "Bash(grep -rn foross-card C:Usersmar_ssourcereposskriv-med-bibelensrc --include=*.css)",
-      "Bash(awk:*)"
+      "Bash(awk:*)",
+      "Bash(ls:*)",
+      "Bash(xargs grep:*)",
+      "Bash(npm run:*)",
+      "Bash(npm list:*)",
+      "WebFetch(domain:marius-portifolio.vercel.app)",
+      "Bash(grep -E \"\\\\.\\(ts|js\\)$\")",
+      "Bash(grep -E \"\\\\.\\(ts|sql\\)$\")",
+      "Bash(grep -l BubbleMenu node_modules/@tiptap/react/dist/*.js)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); [print\\(k\\) for k in d.get\\(''''exports'''',{}\\).keys\\(\\)]\")",
+      "WebFetch(domain:tiptap.dev)",
+      "Read(//c/Users/mar_s/.claude//**)",
+      "Read(//c/Users/mar_s/.claude/**)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d, indent=2\\)\\)\")",
+      "Bash(PYTHONUTF8=1 PYTHONIOENCODING=utf-8 python -m scripts.package_skill /c/Users/mar_s/.claude/skills/tiptap-core /c/Users/mar_s/.claude/skills/)"
     ]
   }
 }

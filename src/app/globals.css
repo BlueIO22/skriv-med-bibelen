@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
 :root {
+  /* Dark chat palette (legacy) */
   --bg:        #141414;
   --surface:   #1C1C1C;
   --surface2:  #242424;
@@ -13,6 +14,20 @@
   --gold-dim:  #8A7030;
   --gold-faint:#3A2E10;
   --danger:    #8B3A3A;
+
+  /* Sermon builder warm palette */
+  --sb-bg:         #ffffff;
+  --sb-panel:      #f9f6f1;
+  --sb-surface:    #f2ede5;
+  --sb-border:     #ddd5c8;
+  --sb-border-mid: #e8e2d8;
+  --sb-ink:        #1c1814;
+  --sb-ink-soft:   #4a4038;
+  --sb-ink-meta:   #7a6e62;
+  --sb-ink-muted:  #a89880;
+  --sb-ink-faint:  #c8b8a8;
+  --sb-gold:       #c8a84b;
+  --sb-gold-light: rgba(200,168,75,0.10);
 }
 
 @theme inline {
@@ -20,6 +35,15 @@
   --color-foreground: var(--ink);
   --font-sans: var(--font-ubuntu);
   --font-mono: var(--font-ubuntu);
+  --font-serif: var(--font-playfair);
+}
+
+.verse-row .verse-paste-btn {
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.verse-row:hover .verse-paste-btn {
+  opacity: 1;
 }
 
 @keyframes fade-up {
@@ -78,6 +102,36 @@ body {
 }
 
 button:focus-visible { outline: 1px solid var(--gold-dim); outline-offset: 2px; }
+
+/* TipTap editor */
+.tiptap p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: #c4b8a4;
+  float: left;
+  height: 0;
+  pointer-events: none;
+  font-style: italic;
+}
+.tiptap:focus { outline: none; }
+.tiptap h2 { font-family: var(--font-playfair), Georgia, serif; font-size: 1.3rem; font-weight: 700; margin-top: 1.75rem; margin-bottom: 0.4rem; color: #1a1614; }
+.tiptap h3 { font-family: var(--font-playfair), Georgia, serif; font-size: 1.1rem; font-weight: 600; font-style: italic; margin-top: 1.25rem; margin-bottom: 0.3rem; color: #1a1614; }
+.tiptap p { margin-bottom: 0.9rem; line-height: 1.85; }
+.tiptap p:last-child { margin-bottom: 0; }
+.tiptap ul { list-style: disc; margin-left: 1.4rem; margin-bottom: 0.9rem; }
+.tiptap ol { list-style: decimal; margin-left: 1.4rem; margin-bottom: 0.9rem; }
+.tiptap li { margin-bottom: 0.3rem; line-height: 1.75; }
+.tiptap strong { font-weight: 600; color: #1a1614; }
+.tiptap em { font-style: italic; }
+.tiptap blockquote {
+  border-left: 3px solid var(--sb-gold);
+  margin: 1.1rem 0;
+  padding: 0.55rem 1rem 0.55rem 1.25rem;
+  color: var(--sb-ink-meta);
+  font-style: italic;
+  background: rgba(200,168,75,0.07);
+  border-radius: 0 4px 4px 0;
+}
+.tiptap blockquote p { margin-bottom: 0; line-height: 1.75; }
 
 /* Scrollbar */
 ::-webkit-scrollbar { width: 3px; height: 3px; }
