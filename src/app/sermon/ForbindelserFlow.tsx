@@ -10,7 +10,9 @@ import {
   faExpand,
   faEye,
   faPlus,
+  faSpinner,
   faTimes,
+  faWandMagicSparkles,
 } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
@@ -738,7 +740,55 @@ function ConnectionDialog({
   onClose: () => void;
 }) {
   const [label, setLabel] = useState(initialLabel);
+  const [isGenerating, setIsGenerating] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const generateWithAI = useCallback(async () => {
+    setIsGenerating(true);
+    try {
+      const sourceVerses = sourceData.verses
+        ?.map((v) => `${v.versenumber} ${v.versecontent}`)
+        .join("\n");
+      const targetVerses = targetData.verses
+        ?.map((v) => `${v.versenumber} ${v.versecontent}`)
+        .join("\n");
+
+      const res = await fetch("/api/sermon/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          step: "forbindelser",
+          messages: [
+            {
+              role: "user",
+              content: `Forklar kort og presist hva som forbinder disse to bibelversene teologisk og motivmessig. Svar med maksimalt tre setninger på norsk bokmål. Ingen innledning, bare selve forklaringen.\n\n${sourceData.reference}:\n${sourceVerses}\n\n${targetData.reference}:\n${targetVerses}`,
+            },
+          ],
+          context: {
+            sunday_name: "",
+            dato: "",
+            tekstrekke: 1,
+            series: "",
+            ot_reference: null,
+            epistle_reference: null,
+            gospel_reference: null,
+            otText: "",
+            epistleText: "",
+            gospelText: "",
+          },
+        }),
+      });
+
+      if (res.ok) {
+        const text = await res.text();
+        if (text.trim()) setLabel(text.trim());
+      }
+    } catch {
+      // silently fail — user can try again
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [sourceData, targetData]);
 
   useEffect(() => {
     const t = setTimeout(() => textareaRef.current?.focus(), 50);
@@ -860,19 +910,66 @@ function ConnectionDialog({
 
           {/* Connection editor */}
           <div style={{ marginBottom: 16 }}>
-            <label
+            <div
               style={{
-                display: "block",
-                fontSize: 10,
-                fontWeight: 700,
-                color: "#8a7a6a",
-                textTransform: "uppercase",
-                letterSpacing: "0.1em",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
                 marginBottom: 7,
               }}
             >
-              Forbindelsen mellom {sourceData.reference} og {targetData.reference}
-            </label>
+              <label
+                style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  color: "#8a7a6a",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.1em",
+                }}
+              >
+                Forbindelsen mellom {sourceData.reference} og {targetData.reference}
+              </label>
+              <button
+                onClick={generateWithAI}
+                disabled={isGenerating}
+                title="Generer forbindelse med AI"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 5,
+                  padding: "4px 10px",
+                  borderRadius: 6,
+                  border: "1px solid #c8a84b",
+                  background: isGenerating ? "#f5edd8" : "#fffbf0",
+                  color: "#a8882b",
+                  fontSize: 11,
+                  fontWeight: 600,
+                  cursor: isGenerating ? "default" : "pointer",
+                  fontFamily: "var(--font-ubuntu), Ubuntu, sans-serif",
+                  transition: "background 0.12s, color 0.12s",
+                  flexShrink: 0,
+                }}
+                onMouseEnter={(e) => {
+                  if (!isGenerating) {
+                    e.currentTarget.style.background = "#f5edd8";
+                    e.currentTarget.style.color = "#7a6018";
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isGenerating) {
+                    e.currentTarget.style.background = "#fffbf0";
+                    e.currentTarget.style.color = "#a8882b";
+                  }
+                }}
+              >
+                <FontAwesomeIcon
+                  icon={isGenerating ? faSpinner : faWandMagicSparkles}
+                  spin={isGenerating}
+                  style={{ fontSize: 10 }}
+                />
+                {isGenerating ? "Genererer…" : "Generer med AI"}
+              </button>
+            </div>
             <textarea
               ref={textareaRef}
               value={label}
@@ -1057,17 +1154,19 @@ export function ForbindelserFlow({
   ref?: React.Ref<ForbindelserFlowHandle>;
 }) {
   const savedState = isFlowState(data.draftJson) ? data.draftJson : undefined;
-  const hasFlow = (savedState?.nodes?.length ?? 0) > 0;
+  // hasSavedState = user has explicitly interacted and saved state (even if empty)
+  // vs undefined = first open, should seed with Sunday texts
+  const hasSavedState = savedState !== undefined;
 
-  const editorRefs = hasFlow
+  const editorRefs = hasSavedState
     ? []
     : extractBibleRefs(tekststudieData?.draftJson as object | undefined);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(
-    hasFlow ? savedState!.nodes : makeInitialNodes(apiData, editorRefs),
+    hasSavedState ? savedState!.nodes : makeInitialNodes(apiData, editorRefs),
   );
   const [edges, setEdges, onEdgesChange] = useEdgesState(
-    hasFlow ? (savedState!.edges ?? []) : [],
+    hasSavedState ? (savedState!.edges ?? []) : [],
   );
 
   // Keep a ref to nodes so connection dialog can look up verse data by node ID

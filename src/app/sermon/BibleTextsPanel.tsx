@@ -19,10 +19,10 @@ export function BibleTextsPanel({
     <aside
       style={{
         width: "240px",
-        flexShrink: 0,
+        minWidth: "240px",
+        height: "100%",
         overflowY: "auto",
         background: "var(--sb-panel)",
-        borderRight: "1px solid var(--sb-border)",
       }}
     >
       <div style={{ padding: "24px 20px" }}>

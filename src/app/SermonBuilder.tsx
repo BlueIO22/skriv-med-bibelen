@@ -30,6 +30,8 @@ export function SermonBuilder() {
   const [activeStep, setActiveStep] = useState<Step>("tekststudie");
   const [draft, setDraft] = useState<SermonDraft | null>(null);
   const [generatingDraft, setGeneratingDraft] = useState(false);
+  const [teksterCollapsed, setTeksterCollapsed] = useState(false);
+  const [chatCollapsed, setChatCollapsed] = useState(false);
   const editorRef = useRef<Editor | null>(null);
   const cursorExplicitlySet = useRef(false);
 
@@ -503,12 +505,54 @@ export function SermonBuilder() {
       ) : (
         <div style={{ display: "flex", flex: 1, minHeight: 0, overflow: "hidden" }}>
           {/* Column 1: Bible texts */}
-          <BibleTextsPanel
-            apiData={apiData}
-            tekstrekke={tekstrekke}
-            onLoadDate={loadDate}
-            onPasteVerse={handlePasteVerse}
-          />
+          <div
+            style={{
+              width: teksterCollapsed ? "0px" : "240px",
+              flexShrink: 0,
+              overflow: "hidden",
+              transition: "width 0.2s ease",
+            }}
+          >
+            <BibleTextsPanel
+              apiData={apiData}
+              tekstrekke={tekstrekke}
+              onLoadDate={loadDate}
+              onPasteVerse={handlePasteVerse}
+            />
+          </div>
+
+          {/* Toggle strip: tekster */}
+          <button
+            onClick={() => setTeksterCollapsed((v) => !v)}
+            title={teksterCollapsed ? "Vis tekster" : "Skjul tekster"}
+            style={{
+              flexShrink: 0,
+              width: "18px",
+              border: "none",
+              borderRight: "1px solid var(--sb-border)",
+              background: "var(--sb-panel)",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "var(--sb-ink-meta)",
+              padding: 0,
+              transition: "background 0.12s, color 0.12s",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "var(--sb-surface)";
+              e.currentTarget.style.color = "var(--sb-ink)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "var(--sb-panel)";
+              e.currentTarget.style.color = "var(--sb-ink-meta)";
+            }}
+          >
+            <FontAwesomeIcon
+              icon={teksterCollapsed ? faArrowRight : faArrowLeft}
+              style={{ fontSize: "10px" }}
+            />
+          </button>
 
           {/* Column 2: Writing workspace */}
           <main
@@ -560,26 +604,59 @@ export function SermonBuilder() {
             )}
           </main>
 
-          {/* Column 3: Chat */}
-          <aside
+          {/* Toggle strip: chat */}
+          <button
+            onClick={() => setChatCollapsed((v) => !v)}
+            title={chatCollapsed ? "Vis chat" : "Skjul chat"}
             style={{
-              width: "300px",
               flexShrink: 0,
-              display: "flex",
-              flexDirection: "column",
-              overflow: "hidden",
+              width: "18px",
+              border: "none",
               borderLeft: "1px solid var(--sb-border)",
+              background: "var(--sb-panel)",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "var(--sb-ink-meta)",
+              padding: 0,
+              transition: "background 0.12s, color 0.12s",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "var(--sb-surface)";
+              e.currentTarget.style.color = "var(--sb-ink)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "var(--sb-panel)";
+              e.currentTarget.style.color = "var(--sb-ink-meta)";
             }}
           >
-            <ChatPanel
-              context={context}
-              messages={chatMessages}
-              onMessages={updateChat}
-              onClear={() => updateChat([])}
-              activeStep={activeStep}
-              onInsertRef={handleInsertRef}
+            <FontAwesomeIcon
+              icon={chatCollapsed ? faArrowLeft : faArrowRight}
+              style={{ fontSize: "10px" }}
             />
-          </aside>
+          </button>
+
+          {/* Column 3: Chat */}
+          <div
+            style={{
+              width: chatCollapsed ? "0px" : "300px",
+              flexShrink: 0,
+              overflow: "hidden",
+              transition: "width 0.2s ease",
+            }}
+          >
+            <div style={{ width: "300px", height: "100%", display: "flex", flexDirection: "column" }}>
+              <ChatPanel
+                context={context}
+                messages={chatMessages}
+                onMessages={updateChat}
+                onClear={() => updateChat([])}
+                activeStep={activeStep}
+                onInsertRef={handleInsertRef}
+              />
+            </div>
+          </div>
         </div>
       )}
     </div>

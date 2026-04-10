@@ -120,7 +120,7 @@ Din oppgave:
 - Bruk overskrifter (## for hoveddeler) for å strukturere teksten
 - ${BIBLE_REF_INSTRUCTION}
 
-Bruk prestens eget materiale aktivt. Respekter de teologiske valgene presten har gjort.
+KRITISK: Du skriver selve prekenteksten som presten skal tale til menigheten. Teksten er en monolog rettet mot menigheten («dere» = tilhørerne i kirken), ikke en samtale med presten. Aldri henvis til prestens eget arbeid, notater eller prosess inne i teksten («som du har pekt på», «slik vi har sett», «som vi diskuterte» e.l.). Bruk prestens materiale aktivt, men vev det inn i prekenen usynlig.
 Dette er et arbeidsutkast – presten vil selv omforme og eie teksten. Svar alltid på norsk.`,
 };
 
@@ -247,10 +247,10 @@ export async function POST(req: Request): Promise<Response> {
   const systemPrompt = buildSystemPrompt(step, context, relatedVerses);
 
   const stream = await openai.chat.completions.create({
-    model: "gpt-5.4-mini",
+    model: "gpt-5.4-mini-2026-03-17",
     stream: true,
     messages: [{ role: "system", content: systemPrompt }, ...messages],
-    max_tokens: step === "generer-utkast" ? 4000 : 2000,
+    max_completion_tokens: step === "generer-utkast" ? 4000 : 2000,
     temperature: 0.7,
   });
 

@@ -103,7 +103,6 @@ export function ProseEditor({
         editor.getText({ blockSeparator: "\n\n" }),
       ),
     onSelectionUpdate: () => forceUpdate((n) => n + 1),
-    onTransaction: () => forceUpdate((n) => n + 1),
     editorProps: {
       attributes: {
         class: "outline-none min-h-[400px] leading-[1.85] text-[16px]",
@@ -231,21 +230,19 @@ export function ProseEditor({
           const { from, to } = state.selection;
           if (from === to) return false;
           if (editor.isActive("bibleReference")) return false;
-          const text = state.doc.textBetween(from, to, " ");
-          const words = text.trim().split(/\s+/).filter(Boolean).length;
-          return words >= 10;
+          return true;
         }}
-        options={{ placement: "top-end" }}
+        options={{ placement: "top-start" }}
       >
         <div
           style={{
             display: "flex",
             background: "var(--sb-bg)",
             border: "1px solid var(--sb-border)",
-            borderRadius: 20,
+            borderRadius: explainText !== null ? 10 : 20,
             padding: explainText !== null ? "8px 12px" : "2px 4px",
             boxShadow: "0 2px 12px rgba(0,0,0,0.14)",
-            gap: 4,
+            gap: 2,
             maxWidth: explainText !== null ? 380 : undefined,
             flexDirection: explainText !== null ? "column" : "row",
             alignItems: explainText !== null ? "flex-start" : "center",
@@ -272,35 +269,91 @@ export function ProseEditor({
               </p>
             </>
           ) : (
-            <button
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={handleExplain}
-              style={{
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                padding: "3px 9px",
-                color: "var(--sb-ink-meta)",
-                fontSize: 12,
-                display: "flex",
-                alignItems: "center",
-                gap: 5,
-                borderRadius: 16,
-                fontFamily: "inherit",
-                transition: "background 0.12s, color 0.12s",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = "var(--sb-surface)";
-                e.currentTarget.style.color = "var(--sb-ink)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "none";
-                e.currentTarget.style.color = "var(--sb-ink-meta)";
-              }}
-            >
-              <FontAwesomeIcon icon={faWandMagicSparkles} style={{ fontSize: 10 }} />
-              Forklar
-            </button>
+            <>
+              {(
+                [
+                  { label: "B", title: "Fet", active: editor.isActive("bold"), action: () => editor.chain().focus().toggleBold().run(), style: { fontWeight: 700 } },
+                  { label: "I", title: "Kursiv", active: editor.isActive("italic"), action: () => editor.chain().focus().toggleItalic().run(), style: { fontStyle: "italic" } },
+                  { label: "H1", title: "Overskrift 1", active: editor.isActive("heading", { level: 2 }), action: () => editor.chain().focus().toggleHeading({ level: 2 }).run(), style: {} },
+                  { label: "H2", title: "Overskrift 2", active: editor.isActive("heading", { level: 3 }), action: () => editor.chain().focus().toggleHeading({ level: 3 }).run(), style: {} },
+                ] as Array<{ label: string; title: string; active: boolean; action: () => void; style: React.CSSProperties }>
+              ).map(({ label, title, active, action, style }) => (
+                <button
+                  key={label}
+                  title={title}
+                  onMouseDown={(e) => { e.preventDefault(); action(); }}
+                  style={{
+                    background: active ? "rgba(200,168,75,0.14)" : "none",
+                    border: active ? "1px solid rgba(200,168,75,0.45)" : "1px solid transparent",
+                    borderRadius: 6,
+                    cursor: "pointer",
+                    padding: "3px 7px",
+                    color: active ? "var(--sb-gold)" : "var(--sb-ink-meta)",
+                    fontSize: 11,
+                    fontWeight: 600,
+                    fontFamily: "inherit",
+                    lineHeight: 1,
+                    transition: "background 0.12s, color 0.12s",
+                    ...style,
+                  }}
+                  onMouseEnter={(e) => { if (!active) { e.currentTarget.style.background = "var(--sb-surface)"; e.currentTarget.style.color = "var(--sb-ink)"; } }}
+                  onMouseLeave={(e) => { if (!active) { e.currentTarget.style.background = "none"; e.currentTarget.style.color = "var(--sb-ink-meta)"; } }}
+                >
+                  {label}
+                </button>
+              ))}
+              <button
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => editor.chain().focus().toggleBlockquote().run()}
+                title="Sitat"
+                style={{
+                  background: editor.isActive("blockquote") ? "rgba(200,168,75,0.14)" : "none",
+                  border: editor.isActive("blockquote") ? "1px solid rgba(200,168,75,0.45)" : "1px solid transparent",
+                  borderRadius: 6,
+                  cursor: "pointer",
+                  padding: "3px 7px",
+                  color: editor.isActive("blockquote") ? "var(--sb-gold)" : "var(--sb-ink-meta)",
+                  fontSize: 10,
+                  lineHeight: 1,
+                  transition: "background 0.12s, color 0.12s",
+                }}
+                onMouseEnter={(e) => { if (!editor.isActive("blockquote")) { e.currentTarget.style.background = "var(--sb-surface)"; e.currentTarget.style.color = "var(--sb-ink)"; } }}
+                onMouseLeave={(e) => { if (!editor.isActive("blockquote")) { e.currentTarget.style.background = "none"; e.currentTarget.style.color = "var(--sb-ink-meta)"; } }}
+              >
+                <FontAwesomeIcon icon={faQuoteLeft} />
+              </button>
+              <div style={{ width: 1, height: 14, background: "var(--sb-border)", margin: "0 3px" }} />
+              <button
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={handleExplain}
+                style={{
+                  background: "none",
+                  border: "1px solid transparent",
+                  cursor: "pointer",
+                  padding: "3px 8px",
+                  color: "var(--sb-ink-meta)",
+                  fontSize: 11,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 4,
+                  borderRadius: 6,
+                  fontFamily: "inherit",
+                  transition: "background 0.12s, color 0.12s",
+                  lineHeight: 1,
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = "var(--sb-surface)";
+                  e.currentTarget.style.color = "var(--sb-ink)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = "none";
+                  e.currentTarget.style.color = "var(--sb-ink-meta)";
+                }}
+              >
+                <FontAwesomeIcon icon={faWandMagicSparkles} style={{ fontSize: 9 }} />
+                Forklar
+              </button>
+            </>
           )}
         </div>
       </BubbleMenu>
