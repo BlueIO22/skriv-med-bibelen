@@ -1389,7 +1389,7 @@ function getChurchYearRefs(day: ChurchYearDay): ChurchYearRef[] {
   return (
     [
       { label: "GT", ref: day.ot_reference },
-      { label: "Epistel", ref: day.epistle_reference },
+      { label: "NT", ref: day.epistle_reference },
       { label: "Evangelium", ref: day.gospel_reference },
     ] as { label: string; ref: string | null }[]
   )
@@ -2847,7 +2847,6 @@ function MobileContextDrawer({
     </div>
   );
 }
-
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 

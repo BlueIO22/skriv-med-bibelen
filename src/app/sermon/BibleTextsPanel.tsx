@@ -1,6 +1,9 @@
 "use client";
 
-import type { SermonTextsResponse, VerseRow } from "@/app/api/sermon/texts/route";
+import type {
+  SermonTextsResponse,
+  VerseRow,
+} from "@/app/api/sermon/texts/route";
 import { formatShort } from "@/lib/sermon/dateUtils";
 import { TextCard } from "./TextCard";
 
@@ -55,7 +58,7 @@ export function BibleTextsPanel({
             {apiData.epistle && (
               <TextCard
                 text={apiData.epistle}
-                label={`Epistel · ${apiData.day.epistle_reference}`}
+                label={`NT · ${apiData.day.epistle_reference}`}
                 onPasteVerse={onPasteVerse}
               />
             )}
@@ -80,7 +83,9 @@ export function BibleTextsPanel({
             <div style={{ borderTop: "1px solid var(--sb-border-mid)" }} />
           </div>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+          <div
+            style={{ display: "flex", flexDirection: "column", gap: "10px" }}
+          >
             {[80, 70, 75].map((w, i) => (
               <div
                 key={i}

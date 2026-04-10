@@ -182,7 +182,7 @@ DAGENS TEKSTER
 Gammeltestamentlig tekst – ${ctx.ot_reference ?? "ikke angitt"}:
 ${ctx.otText || "(Ingen tekst funnet)"}
 
-Episteltekst – ${ctx.epistle_reference ?? "ikke angitt"}:
+Nytestamentlig tekst – ${ctx.epistle_reference ?? "ikke angitt"}:
 ${ctx.epistleText || "(Ingen tekst funnet)"}
 
 Evangelietekst – ${ctx.gospel_reference ?? "ikke angitt"}:
