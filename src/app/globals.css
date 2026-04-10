@@ -133,6 +133,27 @@ button:focus-visible { outline: 1px solid var(--gold-dim); outline-offset: 2px; 
 }
 .tiptap blockquote p { margin-bottom: 0; line-height: 1.75; }
 
+/* React Flow */
+.react-flow__controls {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08) !important;
+  border: 1px solid var(--sb-border) !important;
+  border-radius: 8px !important;
+  overflow: hidden !important;
+}
+.react-flow__controls-button {
+  background: #fff !important;
+  border-color: var(--sb-border) !important;
+  color: var(--sb-ink-meta) !important;
+}
+.react-flow__controls-button:hover {
+  background: var(--sb-panel) !important;
+  color: var(--sb-ink) !important;
+}
+.react-flow__controls-button svg { fill: currentColor !important; }
+.react-flow__edge-path { stroke-linecap: round; }
+.react-flow .nodrag::-webkit-scrollbar { width: 3px; }
+.react-flow .nodrag::-webkit-scrollbar-thumb { background: #ddd5c8; border-radius: 2px; }
+
 /* Scrollbar */
 ::-webkit-scrollbar { width: 3px; height: 3px; }
 ::-webkit-scrollbar-track { background: transparent; }

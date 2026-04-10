@@ -38,8 +38,20 @@ export async function GET(req: Request): Promise<Response> {
   if (!parsed) return Response.json({ error: "Could not parse ref" }, { status: 400 });
 
   const { chapter, verses } = parsed;
-  // Resolve abbreviations and display-name aliases to the DB newname
-  const book = ABBREV_TO_FULLNAME[parsed.book] ?? DISPLAY_TO_NEWNAME[parsed.book] ?? parsed.book;
+  // Build case-insensitive lookup for abbreviations
+  const lowerAbbrevMap: Record<string, string> = {};
+  for (const [k, v] of Object.entries(ABBREV_TO_FULLNAME)) {
+    lowerAbbrevMap[k.toLowerCase()] = v;
+  }
+  const lowerDisplayMap: Record<string, string> = {};
+  for (const [k, v] of Object.entries(DISPLAY_TO_NEWNAME)) {
+    lowerDisplayMap[k.toLowerCase()] = v;
+  }
+  const bookKey = parsed.book.toLowerCase();
+  const book =
+    lowerAbbrevMap[bookKey] ??
+    lowerDisplayMap[bookKey] ??
+    parsed.book;
 
   let query = supabase
     .from("verse_chapter_book_references")

@@ -74,7 +74,7 @@ export function BibleReferenceView({ node, updateAttributes, selected, deleteNod
   useEffect(() => {
     if (!adjusting) return;
     const handler = (e: MouseEvent) => {
-      if (adjustPopoverRef.current && !adjustPopoverRef.current.contains(e.target as Node)) {
+      if (adjustPopoverRef.current && !adjustPopoverRef.current.contains(e.target as globalThis.Node)) {
         setAdjusting(false);
       }
     };

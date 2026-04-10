@@ -18,6 +18,7 @@ import { formatLong, formatShort, todayISO } from "@/lib/sermon/dateUtils";
 import { markdownToHtml } from "@/lib/sermon/markdownUtils";
 import { BibleTextsPanel } from "./sermon/BibleTextsPanel";
 import { ChatPanel } from "./sermon/ChatPanel";
+import { ForbindelserFlow } from "./sermon/ForbindelserFlow";
 import { StepTabBar } from "./sermon/StepTabBar";
 import { StepWorkspace } from "./sermon/StepWorkspace";
 
@@ -527,26 +528,36 @@ export function SermonBuilder() {
               }}
             />
 
-            <div style={{ flex: 1, overflowY: "auto" }}>
-              <div
-                style={{
-                  maxWidth: "680px",
-                  margin: "0 auto",
-                  padding: "48px 48px 80px",
-                }}
-              >
-                <StepWorkspace
-                  key={activeStep + (apiData?.day.dato ?? "")}
-                  step={activeStep}
-                  data={currentStep}
-                  onChange={(patch) => updateStep(activeStep, patch)}
-                  editorRef={editorRef}
-                  onGenerateDraft={handleGenerateDraft}
-                  generatingDraft={generatingDraft}
-                  onCursorPlaced={() => { cursorExplicitlySet.current = true; }}
-                />
+            {activeStep === "forbindelser" ? (
+              <ForbindelserFlow
+                key={"forbindelser" + (apiData?.day.dato ?? "")}
+                data={currentStep}
+                onChange={(patch) => updateStep("forbindelser", patch)}
+                apiData={apiData}
+                tekststudieData={draft?.steps.tekststudie}
+              />
+            ) : (
+              <div style={{ flex: 1, overflowY: "auto" }}>
+                <div
+                  style={{
+                    maxWidth: "680px",
+                    margin: "0 auto",
+                    padding: "48px 48px 80px",
+                  }}
+                >
+                  <StepWorkspace
+                    key={activeStep + (apiData?.day.dato ?? "")}
+                    step={activeStep}
+                    data={currentStep}
+                    onChange={(patch) => updateStep(activeStep, patch)}
+                    editorRef={editorRef}
+                    onGenerateDraft={handleGenerateDraft}
+                    generatingDraft={generatingDraft}
+                    onCursorPlaced={() => { cursorExplicitlySet.current = true; }}
+                  />
+                </div>
               </div>
-            </div>
+            )}
           </main>
 
           {/* Column 3: Chat */}

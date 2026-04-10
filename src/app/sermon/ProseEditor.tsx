@@ -240,7 +240,6 @@ export function ProseEditor({
         <div
           style={{
             display: "flex",
-            alignItems: "center",
             background: "var(--sb-bg)",
             border: "1px solid var(--sb-border)",
             borderRadius: 20,
