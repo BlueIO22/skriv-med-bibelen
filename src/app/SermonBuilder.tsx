@@ -5,6 +5,7 @@ import {
   faArrowLeft,
   faArrowRight,
   faCalendarDay,
+  faChevronDown,
   faSpinner,
 } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -18,9 +19,10 @@ import { formatLong, formatShort, todayISO } from "@/lib/sermon/dateUtils";
 import { markdownToHtml } from "@/lib/sermon/markdownUtils";
 import { BibleTextsPanel } from "./sermon/BibleTextsPanel";
 import { ChatPanel } from "./sermon/ChatPanel";
-import { ForbindelserFlow } from "./sermon/ForbindelserFlow";
+import { ForbindelserFlow, type ForbindelserFlowHandle } from "./sermon/ForbindelserFlow";
 import { StepTabBar } from "./sermon/StepTabBar";
 import { StepWorkspace } from "./sermon/StepWorkspace";
+import { TextSelectionDialog } from "./sermon/TextSelectionDialog";
 
 export function SermonBuilder() {
   const [date, setDate] = useState(() => todayISO());
@@ -32,8 +34,17 @@ export function SermonBuilder() {
   const [generatingDraft, setGeneratingDraft] = useState(false);
   const [teksterCollapsed, setTeksterCollapsed] = useState(false);
   const [chatCollapsed, setChatCollapsed] = useState(false);
+  const [textSelectionOpen, setTextSelectionOpen] = useState(false);
+  const [sundayDropdownOpen, setSundayDropdownOpen] = useState(false);
+  const [sundayQuery, setSundayQuery] = useState("");
+  const [allDays, setAllDays] = useState<Array<{ dato: string; sunday_name: string }>>([]);
+  const sundayDropdownRef = useRef<HTMLDivElement>(null);
+  const sundayInputRef = useRef<HTMLInputElement>(null);
+  const sundayListRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<Editor | null>(null);
+  const flowRef = useRef<ForbindelserFlowHandle | null>(null);
   const cursorExplicitlySet = useRef(false);
+  const pendingVerses = useRef<{ step: Step; verses: VerseRow[] } | null>(null);
 
   const loadDate = useCallback(async (d: string, tr?: number | null) => {
     setLoading(true);
@@ -64,6 +75,46 @@ export function SermonBuilder() {
   useEffect(() => {
     loadDate(todayISO(), null);
   }, [loadDate]);
+
+  // Fetch all church year days once on mount
+  useEffect(() => {
+    fetch("/api/sermon/days?series=dnk")
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => { if (data) setAllDays(data.days); })
+      .catch(() => {});
+  }, []);
+
+  // Sunday dropdown: close on outside click
+  useEffect(() => {
+    if (!sundayDropdownOpen) return;
+    const handleClick = (e: MouseEvent) => {
+      if (sundayDropdownRef.current && !sundayDropdownRef.current.contains(e.target as Node)) {
+        setSundayDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [sundayDropdownOpen]);
+
+  const filteredDays = sundayQuery.trim()
+    ? allDays.filter((d) =>
+        d.sunday_name.toLowerCase().includes(sundayQuery.toLowerCase())
+      )
+    : allDays;
+
+  // Scroll active day into center when dropdown opens
+  useEffect(() => {
+    if (!sundayDropdownOpen || !apiData) return;
+    const timer = setTimeout(() => {
+      const el = document.getElementById(`sunday-day-${apiData.day.dato}`);
+      const container = sundayListRef.current;
+      if (el && container) {
+        container.scrollTop =
+          el.offsetTop - container.clientHeight / 2 + el.offsetHeight / 2;
+      }
+    }, 30);
+    return () => clearTimeout(timer);
+  }, [sundayDropdownOpen, apiData]);
 
   useEffect(() => {
     if (!draft || !apiData) return;
@@ -135,6 +186,83 @@ export function SermonBuilder() {
         .run();
     }
   }, []);
+
+  const insertVersesIntoFlow = useCallback((verses: VerseRow[]) => {
+    const flow = flowRef.current;
+    if (!flow || !verses.length) return;
+    // Group by chapter reference
+    const groups = new Map<string, VerseRow[]>();
+    for (const v of verses) {
+      const raw = v.newname_reference.replace(/:\d+(-\d+)?$/, "").trim();
+      const chapterRef = raw.charAt(0).toUpperCase() + raw.slice(1);
+      if (!groups.has(chapterRef)) groups.set(chapterRef, []);
+      groups.get(chapterRef)!.push(v);
+    }
+    for (const [chapterRef, groupVerses] of groups) {
+      flow.addVerseNode(
+        chapterRef,
+        groupVerses
+          .map((v) => ({ versenumber: v.versenumber, versecontent: v.versecontent }))
+          .sort((a, b) => a.versenumber - b.versenumber),
+      );
+    }
+  }, []);
+
+  const insertVersesIntoEditor = useCallback((verses: VerseRow[]) => {
+    const editor = editorRef.current;
+    if (!editor || !verses.length) return;
+    const groups = new Map<string, VerseRow[]>();
+    for (const v of verses) {
+      const raw = v.newname_reference.replace(/:\d+(-\d+)?$/, "").trim();
+      const chapterRef = raw.charAt(0).toUpperCase() + raw.slice(1);
+      if (!groups.has(chapterRef)) groups.set(chapterRef, []);
+      groups.get(chapterRef)!.push(v);
+    }
+    for (const [chapterRef, groupVerses] of groups) {
+      const verseEntries: VerseEntry[] = groupVerses
+        .map((v) => ({ versenumber: v.versenumber, versecontent: v.versecontent }))
+        .sort((a, b) => a.versenumber - b.versenumber);
+      editor
+        .chain()
+        .focus()
+        .setTextSelection(editor.state.doc.content.size)
+        .insertContent({
+          type: "bibleReference",
+          attrs: { reference: chapterRef, verses: verseEntries, comment: "" },
+        })
+        .run();
+    }
+  }, []);
+
+  const handlePasteVerses = useCallback((step: Step, verses: VerseRow[]) => {
+    if (step !== activeStep) {
+      pendingVerses.current = { step, verses };
+      setActiveStep(step);
+      cursorExplicitlySet.current = false;
+      return;
+    }
+    if (step === "forbindelser") {
+      insertVersesIntoFlow(verses);
+    } else {
+      insertVersesIntoEditor(verses);
+    }
+  }, [activeStep, insertVersesIntoFlow, insertVersesIntoEditor]);
+
+  // Insert pending verses once the target step is active
+  useEffect(() => {
+    if (!pendingVerses.current) return;
+    const { step, verses } = pendingVerses.current;
+    if (step !== activeStep) return;
+    pendingVerses.current = null;
+    if (step === "forbindelser") {
+      // Flow mounts synchronously, give it a tick
+      setTimeout(() => insertVersesIntoFlow(verses), 50);
+    } else {
+      const editor = editorRef.current;
+      if (!editor) return;
+      insertVersesIntoEditor(verses);
+    }
+  }, [activeStep, insertVersesIntoFlow, insertVersesIntoEditor]);
 
   const handleInsertRef = useCallback(async (ref: string) => {
     const editor = editorRef.current;
@@ -310,124 +438,277 @@ export function SermonBuilder() {
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              gap: "16px",
+              gap: "20px",
             }}
           >
+            {/* Prev button */}
             <button
               onClick={() =>
                 apiData?.prevSundayDate &&
                 loadDate(apiData.prevSundayDate, tekstrekke)
               }
               disabled={!apiData?.prevSundayDate}
+              title="Forrige"
               style={{
-                width: "28px",
-                height: "28px",
+                width: "36px",
+                height: "36px",
+                flexShrink: 0,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                color: "var(--sb-ink-meta)",
-                background: "none",
-                border: "none",
+                color: apiData?.prevSundayDate ? "var(--sb-ink-soft)" : "var(--sb-ink-faint)",
+                background: "#fff",
+                border: "1px solid var(--sb-border)",
+                borderRadius: "8px",
+                boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
                 cursor: apiData?.prevSundayDate ? "pointer" : "default",
-                borderRadius: "4px",
-                opacity: apiData?.prevSundayDate ? 1 : 0.3,
+                transition: "background 0.12s, box-shadow 0.12s, color 0.12s",
+              }}
+              onMouseEnter={(e) => {
+                if (apiData?.prevSundayDate) {
+                  e.currentTarget.style.background = "var(--sb-panel)";
+                  e.currentTarget.style.boxShadow = "0 2px 6px rgba(0,0,0,0.10)";
+                  e.currentTarget.style.color = "var(--sb-ink)";
+                }
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "#fff";
+                e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.06)";
+                e.currentTarget.style.color = apiData?.prevSundayDate ? "var(--sb-ink-soft)" : "var(--sb-ink-faint)";
               }}
             >
-              <FontAwesomeIcon icon={faArrowLeft} style={{ fontSize: "11px" }} />
+              <FontAwesomeIcon icon={faArrowLeft} style={{ fontSize: "12px" }} />
             </button>
 
-            <div style={{ textAlign: "center" }}>
-              <p
+            {/* Sunday name combobox */}
+            <div ref={sundayDropdownRef} style={{ textAlign: "center", position: "relative", minWidth: "200px" }}>
+              {/* Dropdown trigger */}
+              <button
+                onClick={() => {
+                  setSundayDropdownOpen((v) => !v);
+                  setSundayQuery("");
+                  setTimeout(() => sundayInputRef.current?.focus(), 50);
+                }}
                 style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "7px",
                   fontFamily: "var(--font-playfair), Georgia, serif",
-                  fontSize: "17px",
+                  fontSize: "19px",
                   fontStyle: "italic",
                   color: "var(--sb-ink)",
-                  lineHeight: 1.2,
-                  marginBottom: "3px",
+                  background: sundayDropdownOpen ? "var(--sb-surface)" : "transparent",
+                  border: "1px solid",
+                  borderColor: sundayDropdownOpen ? "var(--sb-border)" : "transparent",
+                  cursor: "pointer",
+                  lineHeight: 1.25,
+                  padding: "5px 12px",
+                  borderRadius: "8px",
+                  transition: "background 0.12s, border-color 0.12s",
+                  marginBottom: "6px",
+                  whiteSpace: "nowrap",
+                }}
+                onMouseEnter={(e) => {
+                  if (!sundayDropdownOpen) {
+                    e.currentTarget.style.background = "var(--sb-surface)";
+                    e.currentTarget.style.borderColor = "var(--sb-border)";
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!sundayDropdownOpen) {
+                    e.currentTarget.style.background = "transparent";
+                    e.currentTarget.style.borderColor = "transparent";
+                  }
                 }}
               >
                 {apiData ? apiData.day.sunday_name : loading ? "…" : "—"}
-              </p>
-              {apiData && (
-                <div
+                <FontAwesomeIcon
+                  icon={faChevronDown}
                   style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                    justifyContent: "center",
+                    fontSize: "10px",
+                    color: "var(--sb-gold)",
+                    fontStyle: "normal",
+                    transition: "transform 0.15s",
+                    transform: sundayDropdownOpen ? "rotate(180deg)" : "rotate(0deg)",
+                    flexShrink: 0,
                   }}
-                >
-                  <p
+                />
+              </button>
+
+              {/* Date + Tekstrekke row */}
+              {apiData && (
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", justifyContent: "center" }}>
+                  <span
                     style={{
-                      fontSize: "10px",
-                      color: "var(--sb-ink-meta)",
-                      letterSpacing: "0.03em",
+                      fontSize: "11px",
+                      color: "var(--sb-ink-soft)",
+                      letterSpacing: "0.02em",
                     }}
                   >
-                    {formatLong(apiData.day.dato).replace(/^\w+,?\s*/, "")}
-                  </p>
-                  <span style={{ color: "var(--sb-border)", fontSize: "10px" }}>·</span>
-                  <div style={{ display: "flex", gap: "3px", alignItems: "center" }}>
-                    <span
-                      style={{
-                        fontSize: "9px",
-                        color: "var(--sb-ink-muted)",
-                        letterSpacing: "0.1em",
-                        marginRight: "2px",
-                      }}
-                    >
-                      TR
+                    {formatLong(apiData.day.dato)}
+                  </span>
+                  <span style={{ color: "var(--sb-border)", fontSize: "11px" }}>·</span>
+                  <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
+                    <span style={{ fontSize: "10px", color: "var(--sb-ink-muted)", marginRight: "1px" }}>
+                      Tekstrekke
                     </span>
-                    {apiData.availableTekstrekker.map((tr) => (
-                      <button
-                        key={tr}
-                        onClick={() => loadDate(apiData.day.dato, tr)}
-                        style={{
-                          width: "18px",
-                          height: "18px",
-                          borderRadius: "3px",
-                          border: "none",
-                          cursor: "pointer",
-                          fontSize: "9px",
-                          fontWeight: 600,
-                          transition: "background 0.12s, color 0.12s",
-                          background:
-                            tekstrekke === tr
-                              ? "var(--sb-gold)"
-                              : "var(--sb-border-mid)",
-                          color: tekstrekke === tr ? "#fff" : "var(--sb-ink-meta)",
-                        }}
-                      >
-                        {tr}
-                      </button>
-                    ))}
+                    {[1, 2, 3].map((tr) => {
+                      const available = apiData.availableTekstrekker.includes(tr);
+                      const active = tekstrekke === tr;
+                      return (
+                        <button
+                          key={tr}
+                          onClick={() => available && loadDate(apiData.day.dato, tr)}
+                          disabled={!available}
+                          style={{
+                            width: "22px",
+                            height: "22px",
+                            borderRadius: "5px",
+                            border: active ? "none" : "1px solid",
+                            borderColor: available ? "var(--sb-border)" : "transparent",
+                            cursor: available ? "pointer" : "default",
+                            fontSize: "10px",
+                            fontWeight: 600,
+                            transition: "background 0.12s, color 0.12s, box-shadow 0.12s",
+                            background: active ? "var(--sb-gold)" : available ? "#fff" : "transparent",
+                            color: active ? "#fff" : available ? "var(--sb-ink-meta)" : "var(--sb-ink-faint)",
+                            boxShadow: active ? "0 1px 4px rgba(200,168,75,0.35)" : available ? "0 1px 2px rgba(0,0,0,0.06)" : "none",
+                            opacity: available ? 1 : 0.35,
+                          }}
+                        >
+                          {tr}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Dropdown panel */}
+              {sundayDropdownOpen && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "calc(100% + 10px)",
+                    left: "50%",
+                    transform: "translateX(-50%)",
+                    width: "300px",
+                    background: "#fff",
+                    border: "1px solid var(--sb-border)",
+                    borderRadius: "10px",
+                    boxShadow: "0 12px 32px rgba(0,0,0,0.12)",
+                    zIndex: 100,
+                    overflow: "hidden",
+                  }}
+                >
+                  <div style={{ padding: "10px 10px 6px" }}>
+                    <input
+                      ref={sundayInputRef}
+                      value={sundayQuery}
+                      onChange={(e) => setSundayQuery(e.target.value)}
+                      placeholder="Søk kirkeårdag…"
+                      style={{
+                        width: "100%",
+                        padding: "8px 12px",
+                        fontSize: "13px",
+                        border: "1px solid var(--sb-border)",
+                        borderRadius: "6px",
+                        background: "var(--sb-panel)",
+                        color: "var(--sb-ink)",
+                        outline: "none",
+                      }}
+                    />
+                  </div>
+                  <div ref={sundayListRef} style={{ maxHeight: "260px", overflowY: "auto", paddingBottom: "6px" }}>
+                    {filteredDays.length === 0 ? (
+                      <div style={{ padding: "14px 16px", fontSize: "12px", color: "var(--sb-ink-muted)", textAlign: "center" }}>
+                        Ingen treff
+                      </div>
+                    ) : (
+                      filteredDays.filter((day) => day.dato).map((day) => {
+                        const isActive = apiData?.day.dato === day.dato;
+                        const year = day.dato.slice(0, 4);
+                        return (
+                          <button
+                            key={day.dato}
+                            id={`sunday-day-${day.dato}`}
+                            onClick={() => {
+                              loadDate(day.dato, tekstrekke);
+                              setSundayDropdownOpen(false);
+                            }}
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                              width: "100%",
+                              padding: "9px 14px",
+                              background: isActive ? "var(--sb-gold-light)" : "transparent",
+                              border: "none",
+                              cursor: "pointer",
+                              color: "var(--sb-ink)",
+                              textAlign: "left",
+                              gap: "12px",
+                            }}
+                            onMouseEnter={(e) => {
+                              if (!isActive) e.currentTarget.style.background = "var(--sb-panel)";
+                            }}
+                            onMouseLeave={(e) => {
+                              if (!isActive) e.currentTarget.style.background = "transparent";
+                            }}
+                          >
+                            <span style={{ fontFamily: "var(--font-playfair), Georgia, serif", fontStyle: "italic", fontSize: "13px" }}>
+                              {day.sunday_name}
+                            </span>
+                            <span style={{ fontSize: "11px", color: "var(--sb-ink-muted)", flexShrink: 0, display: "flex", gap: "5px", alignItems: "center" }}>
+                              <span>{formatShort(day.dato)}</span>
+                              <span style={{ color: "var(--sb-ink-faint)", fontSize: "10px" }}>{year}</span>
+                            </span>
+                          </button>
+                        );
+                      })
+                    )}
                   </div>
                 </div>
               )}
             </div>
 
+            {/* Next button */}
             <button
               onClick={() =>
                 apiData?.nextSundayDate &&
                 loadDate(apiData.nextSundayDate, tekstrekke)
               }
               disabled={!apiData?.nextSundayDate}
+              title="Neste"
               style={{
-                width: "28px",
-                height: "28px",
+                width: "36px",
+                height: "36px",
+                flexShrink: 0,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                color: "var(--sb-ink-meta)",
-                background: "none",
-                border: "none",
+                color: apiData?.nextSundayDate ? "var(--sb-ink-soft)" : "var(--sb-ink-faint)",
+                background: "#fff",
+                border: "1px solid var(--sb-border)",
+                borderRadius: "8px",
+                boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
                 cursor: apiData?.nextSundayDate ? "pointer" : "default",
-                borderRadius: "4px",
-                opacity: apiData?.nextSundayDate ? 1 : 0.3,
+                transition: "background 0.12s, box-shadow 0.12s, color 0.12s",
+              }}
+              onMouseEnter={(e) => {
+                if (apiData?.nextSundayDate) {
+                  e.currentTarget.style.background = "var(--sb-panel)";
+                  e.currentTarget.style.boxShadow = "0 2px 6px rgba(0,0,0,0.10)";
+                  e.currentTarget.style.color = "var(--sb-ink)";
+                }
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "#fff";
+                e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.06)";
+                e.currentTarget.style.color = apiData?.nextSundayDate ? "var(--sb-ink-soft)" : "var(--sb-ink-faint)";
               }}
             >
-              <FontAwesomeIcon icon={faArrowRight} style={{ fontSize: "11px" }} />
+              <FontAwesomeIcon icon={faArrowRight} style={{ fontSize: "12px" }} />
             </button>
           </div>
 
@@ -516,8 +797,9 @@ export function SermonBuilder() {
             <BibleTextsPanel
               apiData={apiData}
               tekstrekke={tekstrekke}
+              activeStep={activeStep}
               onLoadDate={loadDate}
-              onPasteVerse={handlePasteVerse}
+              onOpenTextSelection={() => setTextSelectionOpen(true)}
             />
           </div>
 
@@ -575,6 +857,7 @@ export function SermonBuilder() {
             {activeStep === "forbindelser" ? (
               <ForbindelserFlow
                 key={"forbindelser" + (apiData?.day.dato ?? "")}
+                ref={flowRef}
                 data={currentStep}
                 onChange={(patch) => updateStep("forbindelser", patch)}
                 apiData={apiData}
@@ -658,6 +941,16 @@ export function SermonBuilder() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Text selection dialog */}
+      {textSelectionOpen && apiData && (
+        <TextSelectionDialog
+          apiData={apiData}
+          activeStep={activeStep}
+          onAddVerses={handlePasteVerses}
+          onClose={() => setTextSelectionOpen(false)}
+        />
       )}
     </div>
   );

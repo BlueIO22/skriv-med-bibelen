@@ -1272,6 +1272,22 @@ export function ForbindelserFlow({
     return () => document.removeEventListener("keydown", handler);
   }, [expanded, dialogData, connDialog]);
 
+  useImperativeHandle(ref, () => ({
+    addVerseNode(reference: string, verses: VerseEntry[]) {
+      const count = nodeCountRef.current++;
+      const newNode: Node = {
+        id: `custom-${Date.now()}`,
+        type: "verseNode",
+        position: {
+          x: 150 + (count % 3) * 270,
+          y: 440 + Math.floor(count / 3) * 230,
+        },
+        data: { reference, verses, source: "custom" },
+      };
+      setNodes((nds) => [...nds, newNode]);
+    },
+  }));
+
   const openDialog = useCallback((d: VerseNodeData) => setDialogData(d), []);
   const closeDialog = useCallback(() => setDialogData(null), []);
 
